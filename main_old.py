@@ -17,7 +17,6 @@ class ChatListApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("ChatList — Сравнение AI-ответов")
         self.resize(1000, 700)
-        self.statusBar()  # Инициализирует statusBar
 
         # Хранение временных результатов: model_id → (response, checkbox)
         self.temp_results = {}
@@ -55,16 +54,9 @@ class ChatListApp(QMainWindow):
 
         # Таблица промтов
         self.prompts_table = QTableWidget()
-        self.prompts_table.setColumnCount(5)
-        self.prompts_table.setHorizontalHeaderLabels(["ID", "Дата", "Промт", "Теги", "Действия"])
-        header = self.prompts_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Дата
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # Промт
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Теги
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Действия
-        self.prompts_table.setWordWrap(True)
-        self.prompts_table.resizeRowsToContents()
+        self.prompts_table.setColumnCount(4)
+        self.prompts_table.setHorizontalHeaderLabels(["ID", "Дата", "Промт", "Теги"])
+        self.prompts_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.prompts_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         prompts_layout.addWidget(self.prompts_table)
 
@@ -81,41 +73,7 @@ class ChatListApp(QMainWindow):
         btn_layout.addWidget(self.send_btn)
         prompts_layout.addLayout(btn_layout)
 
-        # ============= ВКЛАДКА 2: РЕЗУЛЬТАТЫ =============
-        results_layout = QVBoxLayout()
-        self.tab_results.setLayout(results_layout)
-
-        # Таблица результатов
-        self.results_table = QTableWidget()
-        self.results_table.setColumnCount(3)
-        self.results_table.setHorizontalHeaderLabels(["Модель", "Ответ", "Выбрать"])
-        
-        # 🔧 Настройка ширины
-        results_header = self.results_table.horizontalHeader()
-        results_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        results_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        results_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-
-        self.results_table.cellDoubleClicked.connect(self.view_full_response)
-        results_layout.addWidget(self.results_table)
-
-
-        # Кнопки управления
-        action_layout = QHBoxLayout()
-        self.save_btn = QPushButton("💾 Сохранить выбранные")
-        self.save_btn.clicked.connect(self.save_selected)
-        action_layout.addWidget(self.save_btn)
-
-        self.clear_btn = QPushButton("🗑️ Очистить")
-        self.clear_btn.clicked.connect(self.clear_results)
-        action_layout.addWidget(self.clear_btn)
-
-        self.export_btn = QPushButton("📄 Экспорт в Markdown")
-        self.export_btn.clicked.connect(self.export_to_markdown)
-        action_layout.addWidget(self.export_btn)
-
-        results_layout.addLayout(action_layout)
-
+       
     def load_prompts(self):
         """Загружает все промты в таблицу"""
         self.prompts_table.setRowCount(0)
@@ -126,18 +84,6 @@ class ChatListApp(QMainWindow):
             self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(p["created_at"]))
             self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
             self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
-
-            # Кнопка "Копировать"
-            copy_btn = QPushButton("📋 Копировать")
-            copy_btn.clicked.connect(lambda checked, text=p["prompt"]: self.copy_prompt_to_input(text))
-            btn_widget = QWidget()
-            btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.addWidget(copy_btn)
-            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            btn_layout.setContentsMargins(4, 2, 4, 2)
-            btn_widget.setLayout(btn_layout)
-
-            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
 
     def on_search(self):
         """Поиск в промтах"""
@@ -155,22 +101,6 @@ class ChatListApp(QMainWindow):
             self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
             self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
 
-            # Кнопка "Копировать"
-            copy_btn = QPushButton("📋 Копировать")
-            copy_btn.clicked.connect(lambda checked, text=p["prompt"]: self.copy_prompt_to_input(text))
-            btn_widget = QWidget()
-            btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.addWidget(copy_btn)
-            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            btn_layout.setContentsMargins(4, 2, 4, 2)
-            btn_widget.setLayout(btn_layout)
-            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
-
-    def copy_prompt_to_input(self, text):
-        """Копирует переданный текст промта в поле ввода"""
-        self.prompt_input.setPlainText(text)
-        self.statusBar().showMessage("Промт скопирован в поле ввода", 3000)
-        
     def load_prompt_to_input(self):
         """Загружает выбранный промт в поле ввода"""
         selected = self.prompts_table.currentRow()
@@ -245,6 +175,38 @@ class ChatListApp(QMainWindow):
         else:
             QMessageBox.information(self, "Внимание", "Ничего не выбрано.")
     
+
+ # ============= ВКЛАДКА 2: РЕЗУЛЬТАТЫ =============
+        results_layout = QVBoxLayout()
+        self.tab_results.setLayout(results_layout)
+
+        # Таблица результатов
+        self.results_table = QTableWidget()
+        self.results_table.setColumnCount(3)
+        self.results_table.setHorizontalHeaderLabels(["Модель", "Ответ", "Выбрать"])
+        self.results_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.results_table.cellDoubleClicked.connect(self.view_full_response)
+        results_layout.addWidget(self.results_table)
+
+
+
+        # Кнопки управления
+        action_layout = QHBoxLayout()
+        self.save_btn = QPushButton("💾 Сохранить выбранные")
+        self.save_btn.clicked.connect(self.save_selected)
+        action_layout.addWidget(self.save_btn)
+
+        self.clear_btn = QPushButton("🗑️ Очистить")
+        self.clear_btn.clicked.connect(self.clear_results)
+        action_layout.addWidget(self.clear_btn)
+
+        self.export_btn = QPushButton("📄 Экспорт в Markdown")
+        self.export_btn.clicked.connect(self.export_to_markdown)
+        action_layout.addWidget(self.export_btn)
+
+        results_layout.addLayout(action_layout)
+
+
     def export_to_markdown(self):
         """Экспортирует выбранные ответы в Markdown-файл"""
         if not self.temp_results:

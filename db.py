@@ -1,4 +1,4 @@
-ы# db.py
+# db.py
 import sqlite3
 import os
 from datetime import datetime

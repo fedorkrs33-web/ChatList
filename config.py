@@ -22,6 +22,19 @@ class Config:
         return client_id, client_secret
 
     @staticmethod
+    def get_yandex_credentials():
+        """Возвращает IAM-токен и Folder ID для Yandex GPT"""
+        iam_token = os.getenv("YANDEX_IAM_TOKEN")
+        folder_id = os.getenv("YANDEX_FOLDER_ID")
+    
+        if not iam_token:
+            raise ValueError("YANDEX_IAM_TOKEN не найден в .env")
+        if not folder_id:
+            raise ValueError("YANDEX_FOLDER_ID не найден в .env")
+        
+        return iam_token, folder_id
+
+    @staticmethod
     def ensure_env_file():
         if not os.path.exists(".env"):
             with open(".env", "w", encoding="utf-8") as f:

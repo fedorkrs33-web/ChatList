@@ -50,8 +50,9 @@ CREATE TABLE IF NOT EXISTS settings (
 # Начальные данные для моделей (можно расширить)
 INITIAL_MODELS = [
     ("DeepSeek", "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY", 1, "deepseek"),
-    ("Llama3 Groq", "https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY", 1, "openai"),
-    ("GigaChat", "", "GIGACHAT", 1, "gigachat"),  # api_url пуст — будет обрабатываться отдель,
+    ("GigaChat", "", "GIGACHAT", 1, "gigachat"),  # api_url пуст — будет обрабатываться отдельно,
+    ("Yandex GPT", "https://https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_IAM_TOKEN", 1, "yandex"),
+
 ]
 
 

@@ -24,6 +24,7 @@ class ChatListApp(QMainWindow):
 
         self.init_ui()
         self.load_prompts()
+        self.load_models()
 
 
     def init_ui(self):
@@ -38,11 +39,13 @@ class ChatListApp(QMainWindow):
         self.tab_results = QWidget()
         tabs.addTab(self.tab_prompts, "Промты")
         tabs.addTab(self.tab_results, "Результаты")
+        tabs.addTab(self.create_models_tab(), "Модели")
         layout.addWidget(tabs)
 
         # ============= ВКЛАДКА 1: ПРОМТЫ =============
         prompts_layout = QVBoxLayout()
         self.tab_prompts.setLayout(prompts_layout)
+
 
         # Поиск
         search_layout = QHBoxLayout()
@@ -115,6 +118,68 @@ class ChatListApp(QMainWindow):
         action_layout.addWidget(self.export_btn)
 
         results_layout.addLayout(action_layout)
+
+    def create_models_tab(self):
+        """Создаёт вкладку 'Модели'"""
+        models_layout = QVBoxLayout()
+        self.tab_models = QWidget()
+        self.tab_models.setLayout(models_layout)
+
+        # Таблица моделей
+        self.models_table = QTableWidget()
+        self.models_table.setColumnCount(5)
+        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "Провайдер", "Активна", "Управление"])
+        self.models_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.models_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Имя
+        models_layout.addWidget(self.models_table)
+
+        # Кнопка обновления
+        refresh_btn = QPushButton("🔄 Обновить список")
+        refresh_btn.clicked.connect(self.load_models)
+        models_layout.addWidget(refresh_btn)
+
+        return self.tab_models
+    
+    def load_models(self):
+        """Загружает модели из БД в таблицу"""
+        self.models_table.setRowCount(0)
+        models = Model.load_all()  # Все модели
+
+        for row_idx, model in enumerate(models):
+            self.models_table.insertRow(row_idx)
+
+            self.models_table.setItem(row_idx, 0, QTableWidgetItem(str(model.id)))
+            self.models_table.setItem(row_idx, 1, QTableWidgetItem(model.name))
+            self.models_table.setItem(row_idx, 2, QTableWidgetItem(model.provider or "—"))
+
+            # Чекбокс "Активна"
+            active_checkbox = QCheckBox()
+            active_checkbox.setChecked(model.is_active)
+            active_checkbox.stateChanged.connect(
+                lambda state, mid=model.id: self.on_model_status_changed(mid, state)
+            )
+            active_cell = QWidget()
+            active_layout = QHBoxLayout(active_cell)
+            active_layout.addWidget(active_checkbox)
+            active_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            active_layout.setContentsMargins(0, 0, 0, 0)
+            active_cell.setLayout(active_layout)
+
+            self.models_table.setCellWidget(row_idx, 3, active_cell)
+
+            # Кнопка "Обновить статус"
+            update_btn = QPushButton("✅ Сохранить")
+            update_btn.clicked.connect(
+                lambda _, mid=model.id, cb=active_checkbox: self.update_model_status(mid, cb)
+            )
+            btn_cell = QWidget()
+            btn_layout = QHBoxLayout(btn_cell)
+            btn_layout.addWidget(update_btn)
+            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_cell.setLayout(btn_layout)
+
+            self.models_table.setCellWidget(row_idx, 4, btn_cell)
 
     def load_prompts(self):
         """Загружает все промты в таблицу"""

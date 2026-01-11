@@ -36,9 +36,11 @@ class Network:
             # 🔹 GigaChat — особый случай
             if model.provider == "gigachat":
                 return Network._send_to_gigachat(prompt)
-
-            # 🔹 OpenAI-совместимые: GPT, Claude, DeepSeek, Groq и др.
-            return Network._send_openai_compatible(model, prompt)
+            elif model.provider == "yandex":
+                return Network._send_to_yandex(prompt)
+            else:
+                # 🔹 OpenAI-совместимые: GPT, Claude, DeepSeek, Groq и др.
+                return Network._send_openai_compatible(model, prompt)
 
         except Exception as e:
             error_msg = f"❌ Критическая ошибка: {str(e)}"
@@ -186,5 +188,56 @@ class Network:
 
         except Exception as e:
             error_msg = f"❌ GigaChat: {str(e)}"
+            print(error_msg)
+            return error_msg
+    @staticmethod
+    def _send_to_yandex(prompt: str) -> str:
+        """Отправка в Yandex GPT через requests (без SDK)"""
+        try:
+            # Получаем креды
+            iam_token, folder_id = Config.get_yandex_credentials()
+
+            # Формируем запрос
+            payload = {
+                "modelUri": f"gpt://{folder_id}/yandexgpt/latest",
+                "completionOptions": {
+                    "temperature": 0.7,
+                    "maxTokens": "1024"
+                },
+                "messages": [{"role": "user", "text": prompt}]
+            }
+
+            headers = {
+                "Authorization": f"Bearer {iam_token}",
+                "Content-Type": "application/json"
+            }
+
+            print(f"   🌐 POST Yandex GPT (folder: {folder_id})")
+            response = requests.post(
+                "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+
+            print(f"   🔎 Status: {response.status_code}")
+
+            if response.status_code == 200:
+                try:
+                    text = response.json()["result"]["alternatives"][0]["message"]["text"]
+                    print("   ✅ Ответ получен")
+                    return text.strip()
+                except (KeyError, IndexError) as e:
+                    return "⚠️ Ответ получен, но не удалось извлечь текст"
+            else:
+                try:
+                    error = response.json().get("error", {}).get("message", response.text)
+                except:
+                    error = response.text
+                print(f"   🚫 Ошибка: {error}")
+                return f"❌ {response.status_code}: {error}"
+
+        except Exception as e:
+            error_msg = f"❌ Yandex GPT: {str(e)}"
             print(error_msg)
             return error_msg

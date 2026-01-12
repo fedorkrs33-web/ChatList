@@ -181,6 +181,23 @@ class ChatListApp(QMainWindow):
 
             self.models_table.setCellWidget(row_idx, 4, btn_cell)
 
+    def on_model_status_changed(self, model_id: int, state: int):
+        """Вызывается при изменении состояния чекбокса модели"""
+        # Метод для отслеживания изменений (можно расширить логикой при необходимости)
+        # state: 0 = Unchecked, 2 = Checked (Qt.CheckState)
+        pass
+
+    def update_model_status(self, model_id: int, checkbox: QCheckBox):
+        """Обновляет статус модели в БД"""
+        is_active = checkbox.isChecked()
+        try:
+            Model.update_status(model_id, is_active)
+            status_text = "активна" if is_active else "неактивна"
+            self.statusBar().showMessage(f"Модель обновлена: статус '{status_text}'", 3000)
+            QMessageBox.information(self, "Готово", f"Статус модели изменён на '{status_text}'")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить статус модели:\n{str(e)}")
+
     def load_prompts(self):
         """Загружает все промты в таблицу"""
         self.prompts_table.setRowCount(0)

@@ -134,6 +134,13 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# Локальные файлы
+.yandex_iam_cache.json
+chatlist.db
+__pycache__/
+*.pyc
+.DS_Store 
+
 # Environments
 .env
 .env.local

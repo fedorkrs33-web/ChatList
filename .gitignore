@@ -55,6 +55,9 @@ cover/
 *.mo
 *.pot
 
+# Yandex Cloud
+.yandex_iam_cache.json
+
 # Django stuff:
 *.log
 local_settings.py

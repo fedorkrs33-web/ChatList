@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS models (
     api_url TEXT NOT NULL,
     api_key_var TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
-    provider TEXT
+    provider TEXT,
+    model_name TEXT
 );
 """
 
@@ -49,11 +50,10 @@ CREATE TABLE IF NOT EXISTS settings (
 
 # Начальные данные для моделей (можно расширить)
 INITIAL_MODELS = [
-    ("DeepSeek", "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY", 1, "deepseek"),
-    ("GigaChat", "", "GIGACHAT", 1, "gigachat"),  # api_url пуст — будет обрабатываться отдельно,
-    ("Yandex GPT", "https://https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_IAM_TOKEN", 1, "yandex"),
-    ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter"),
-
+    ("DeepSeek", "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY", 1, "deepseek", "deepseek-chat"),
+    ("GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
+    ("Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
+    ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "openrouter/auto"),
 ]
 
 
@@ -91,7 +91,7 @@ class Database:
 
             if count == 0:
                 conn.executemany(
-                    "INSERT INTO models (name, api_url, api_key_var, is_active, provider) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO models (name, api_url, api_key_var, is_active, provider, model_name) VALUES (?, ?, ?, ?, ?, ?)",
                     INITIAL_MODELS
                 )
                 conn.commit()
@@ -126,7 +126,7 @@ class Database:
         """Возвращает все активные модели"""
         with self.get_connection() as conn:
             cursor = conn.execute(
-                "SELECT id, name, api_url, api_key_var, provider FROM models WHERE is_active = 1 ORDER BY name"
+                "SELECT id, name, api_url, api_key_var, provider, model_name FROM models WHERE is_active = 1 ORDER BY name"
             )
             return cursor.fetchall()
 

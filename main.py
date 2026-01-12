@@ -119,18 +119,24 @@ class ChatListApp(QMainWindow):
 
         results_layout.addLayout(action_layout)
 
+     #============= ВКЛАДКА 3: МОДЕЛИ =============
     def create_models_tab(self):
         """Создаёт вкладку 'Модели'"""
         models_layout = QVBoxLayout()
         self.tab_models = QWidget()
         self.tab_models.setLayout(models_layout)
-
         # Таблица моделей
         self.models_table = QTableWidget()
-        self.models_table.setColumnCount(5)
-        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "Провайдер", "Активна", "Управление"])
-        self.models_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.models_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Имя
+        self.models_table.setColumnCount(7)
+        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "API URL", "Внутреннее имя", "Провайдер", "Активна", "Управление"])
+        header = self.models_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Имя
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # API URL
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Внутреннее имя
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Провайдер
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Активна
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Управление
         models_layout.addWidget(self.models_table)
 
         # Кнопка обновления
@@ -148,24 +154,27 @@ class ChatListApp(QMainWindow):
         for row_idx, model in enumerate(models):
             self.models_table.insertRow(row_idx)
 
+            # ID
             self.models_table.setItem(row_idx, 0, QTableWidgetItem(str(model.id)))
+            # Имя
             self.models_table.setItem(row_idx, 1, QTableWidgetItem(model.name))
-            self.models_table.setItem(row_idx, 2, QTableWidgetItem(model.provider or "—"))
+            # API URL
+            self.models_table.setItem(row_idx, 2, QTableWidgetItem(model.api_url or "—"))
+            # Внутреннее имя (model_name)
+            self.models_table.setItem(row_idx, 3, QTableWidgetItem(model.model_name or "—"))
+            # Провайдер
+            self.models_table.setItem(row_idx, 4, QTableWidgetItem(model.provider or "—"))
 
             # Чекбокс "Активна"
             active_checkbox = QCheckBox()
             active_checkbox.setChecked(model.is_active)
-            active_checkbox.stateChanged.connect(
-                lambda state, mid=model.id: self.on_model_status_changed(mid, state)
-            )
             active_cell = QWidget()
             active_layout = QHBoxLayout(active_cell)
             active_layout.addWidget(active_checkbox)
             active_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             active_layout.setContentsMargins(0, 0, 0, 0)
             active_cell.setLayout(active_layout)
-
-            self.models_table.setCellWidget(row_idx, 3, active_cell)
+            self.models_table.setCellWidget(row_idx, 5, active_cell)
 
             # Кнопка "Обновить статус"
             update_btn = QPushButton("✅ Сохранить")
@@ -179,7 +188,7 @@ class ChatListApp(QMainWindow):
             btn_layout.setContentsMargins(0, 0, 0, 0)
             btn_cell.setLayout(btn_layout)
 
-            self.models_table.setCellWidget(row_idx, 4, btn_cell)
+            self.models_table.setCellWidget(row_idx, 6, btn_cell)
 
     def on_model_status_changed(self, model_id: int, state: int):
         """Вызывается при изменении состояния чекбокса модели"""

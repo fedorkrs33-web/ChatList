@@ -52,6 +52,7 @@ INITIAL_MODELS = [
     ("DeepSeek", "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY", 1, "deepseek"),
     ("GigaChat", "", "GIGACHAT", 1, "gigachat"),  # api_url пуст — будет обрабатываться отдельно,
     ("Yandex GPT", "https://https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_IAM_TOKEN", 1, "yandex"),
+    ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter"),
 
 ]
 

@@ -6,16 +6,16 @@ from db import db
 class Model:
     """
     Класс для работы с нейросетевыми моделями.
-    Поля: id, name, api_url, api_key_var, is_active, provider
+    Поля: id, name, api_url, api_key_var, is_active, provider, model_name
     """
-
-    def __init__(self, id: int, name: str, api_url: str, api_key_var: str, is_active: bool, provider: str = None):
+    def __init__(self, id: int, name: str, api_url: str, api_key_var: str, is_active: bool, provider: str = None, model_name=None):
         self.id = id
         self.name = name
         self.api_url = api_url
         self.api_key_var = api_key_var
         self.is_active = is_active
         self.provider = provider
+        self.model_name = model_name
 
     @staticmethod
     def load_all() -> List['Model']:
@@ -30,7 +30,8 @@ class Model:
                 api_url=row["api_url"],
                 api_key_var=row["api_key_var"],
                 is_active=bool(row["is_active"]),
-                provider=row["provider"]
+                provider=row["provider"],
+                model_name=row["model_name"]
             )
             for row in rows
         ]

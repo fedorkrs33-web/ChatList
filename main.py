@@ -129,7 +129,72 @@ class ChatListApp(QMainWindow):
         self.export_btn.clicked.connect(self.export_to_markdown)
         action_layout.addWidget(self.export_btn)
 
+        self.load_saved_btn = QPushButton("📥 Загрузить сохранённые")
+        self.load_saved_btn.clicked.connect(self.load_saved_results)
+        action_layout.addWidget(self.load_saved_btn)
+
         results_layout.addLayout(action_layout)
+
+    def load_saved_results(self):
+        """Загружает сохранённые результаты из БД в таблицу"""
+        # Очищаем текущие результаты
+        self.clear_results()
+
+        # Получаем все сохранённые результаты
+        saved_results = db.get_all_saved_results()
+
+        if not saved_results:
+            QMessageBox.information(self, "Нет данных", "Нет сохранённых результатов.")
+            return
+
+        # Устанавливаем количество строк
+        self.results_table.setRowCount(len(saved_results))
+
+        self.temp_results.clear()
+
+        for row_idx, result in enumerate(saved_results):
+            prompt_text = result["prompt"]
+            model_name = result["model_name"]
+            response = result["response"]
+            saved_at = result["saved_at"]
+
+            # Столбец 0: Модель
+            self.results_table.setItem(row_idx, 0, QTableWidgetItem(model_name))
+
+            # Столбец 1: Ответ — с прокруткой
+            label = QLabel(response)
+            label.setWordWrap(True)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            label.setStyleSheet("QLabel { background: #f9f9f9; padding: 8px; }")
+
+            scroll = QScrollArea()
+            scroll.setWidget(label)
+            scroll.setWidgetResizable(True)
+            scroll.setMaximumHeight(200)
+            scroll.setMinimumHeight(60)
+            self.results_table.setCellWidget(row_idx, 1, scroll)
+
+            # Столбец 2: Чекбокс (уже сохранено)
+            checkbox = QCheckBox()
+            checkbox.setChecked(True)
+            checkbox.setEnabled(False)  # Нельзя снять — уже в БД
+            checkbox_widget = QWidget()
+            layout = QHBoxLayout(checkbox_widget)
+            layout.addWidget(checkbox)
+            layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.setContentsMargins(0, 0, 0, 0)
+            checkbox_widget.setLayout(layout)
+            self.results_table.setCellWidget(row_idx, 2, checkbox_widget)
+
+            # Сохраняем в temp_results для совместимости (например, экспорт)
+            self.temp_results[row_idx] = (None, response, checkbox)
+
+        # Подстраиваем высоту строк
+        QTimer.singleShot(50, self.resize_all_rows)
+
+        # Обновляем статус
+        self.statusBar().showMessage(f"Загружено {len(saved_results)} сохранённых ответов", 3000)
 
      #============= ВКЛАДКА 3: МОДЕЛИ =============
     def create_models_tab(self):

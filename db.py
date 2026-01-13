@@ -121,6 +121,27 @@ class Database:
             )
             return cursor.fetchall()
 
+    # === Методы для results ===
+    def get_all_saved_results(self):
+        """Возвращает все сохранённые результаты с промтами и именами моделей"""
+        query = """
+            SELECT 
+                p.prompt,
+                m.name as model_name,
+                r.response,
+                r.saved_at
+            FROM results r
+            JOIN prompts p ON r.prompt_id = p.id
+            JOIN models m ON r.model_id = m.id
+            ORDER BY r.saved_at DESC
+        """
+        try:
+            self.cursor.execute(query)
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"[DB] Ошибка при загрузке результатов: {e}")
+            return []
+
     # === Методы для models ===
     def get_active_models(self) -> List[Tuple]:
         """Возвращает все активные модели"""

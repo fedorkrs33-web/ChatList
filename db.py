@@ -53,7 +53,7 @@ INITIAL_MODELS = [
     ("DeepSeek", "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY", 1, "deepseek", "deepseek-chat"),
     ("GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
     ("Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
-    ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "openrouter/auto"),
+    ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "allenai/molmo-2-8b:free"),
 ]
 
 

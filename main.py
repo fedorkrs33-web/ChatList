@@ -4,13 +4,14 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QTableWidget, QTableWidgetItem,
     QCheckBox, QLabel, QLineEdit, QHeaderView, QTabWidget,
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox, QScrollArea
 )
 from PyQt6.QtCore import Qt
 from models import Model
 from network import Network
 from db import db
 from datetime import datetime
+from PyQt6.QtCore import Qt, QTimer  # Добавьте QTimer
 
 class ChatListApp(QMainWindow):
     def __init__(self):
@@ -92,7 +93,18 @@ class ChatListApp(QMainWindow):
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(3)
         self.results_table.setHorizontalHeaderLabels(["Модель", "Ответ", "Выбрать"])
-        
+        # Разрешить перенос текста в ячейке "Ответ"
+        self.results_table.setWordWrap(True)
+        self.results_table.setTextElideMode(Qt.TextElideMode.ElideNone)
+
+        # Включить автоматическую высоту строк
+        self.results_table.resizeRowsToContents()
+
+        # Опционально: включить прокрутку внутри ячейки
+        self.results_table.verticalHeader().setVisible(True)
+
+
+
         # 🔧 Настройка ширины
         results_header = self.results_table.horizontalHeader()
         results_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -294,15 +306,54 @@ class ChatListApp(QMainWindow):
         self.temp_results.clear()
 
         for row_idx, model in enumerate(models):
-            # Отправляем
             response = Network.send_prompt_to_model(model, prompt)
 
-            # Заполняем таблицу
-            self.results_table.setItem(row_idx, 0, QTableWidgetItem(model.name))
+            print(f"[DEBUG] {model.name}: response={repr(response[:100] if response else None)}")
 
-            response_item = QTableWidgetItem(response)
-            response_item.setFlags(response_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
-            self.results_table.setItem(row_idx, 1, response_item)
+            # Нормализуем ответ
+            if not response or not response.strip():
+                response = f"[Ошибка] Пустой ответ от {model.name}"
+            else:
+                response = response.strip()
+
+            # Устанавливаем имя модели
+            item = QTableWidgetItem(model.name)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            self.results_table.setItem(row_idx, 0, item)
+            # Создаём QLabel
+            label = QLabel(response)
+            label.setWordWrap(True)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            label.setStyleSheet("QLabel { background: #f9f9f9; padding: 8px; }")
+            
+            # Создаём QScrollArea
+            scroll = QScrollArea()
+            scroll.setWidget(label)
+            scroll.setWidgetResizable(True)  # Важно!
+            scroll.setStyleSheet("""
+                QScrollArea {
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    background: white;
+                }
+                QScrollBar:vertical {
+                    width: 12px;
+                    background: #f0f0f0;
+                    border-left: 1px solid #ddd;
+                }
+                QScrollBar::handle:vertical {
+                    background: #c0c0c0;
+                    border-radius: 6px;
+                }
+            """)
+
+            # Устанавливаем высоту прокручиваемой области
+            scroll.setMaximumHeight(200)  # Максимальная высота — можно настроить
+            scroll.setMinimumHeight(60)
+
+            # Устанавливаем в ячейку
+            self.results_table.setCellWidget(row_idx, 1, scroll)  # Высота поля ответа
 
             # Чекбокс
             checkbox = QCheckBox()
@@ -312,9 +363,13 @@ class ChatListApp(QMainWindow):
             layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.setContentsMargins(0, 0, 0, 0)
             checkbox_widget.setLayout(layout)
-
             self.results_table.setCellWidget(row_idx, 2, checkbox_widget)
+
             self.temp_results[row_idx] = (model.id, response, checkbox)
+
+        # После цикла
+        QTimer.singleShot(100, self.resize_all_rows)
+
 
     def save_selected(self):
         """Сохраняет выбранные результаты в БД"""
@@ -381,9 +436,25 @@ class ChatListApp(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
 
     def clear_results(self):
-        """Очищает таблицу результатов"""
+        """Очищает таблицу результатов и удаляет виджеты"""
+        # Очищаем все ячейки с виджетами
+        for row in range(self.results_table.rowCount()):
+            for col in range(self.results_table.columnCount()):
+                widget = self.results_table.cellWidget(row, col)
+                if widget:
+                    widget.deleteLater()
+
+        # Очищаем содержимое и количество строк
+        self.results_table.clearContents()
         self.results_table.setRowCount(0)
         self.temp_results.clear()
+
+    def resize_all_rows(self):
+        """Подстраивает высоту всех строк под содержимое"""
+        for row in range(self.results_table.rowCount()):
+            self.results_table.resizeRowToContents(row)
+        # Принудительно обновляем отображение
+        self.results_table.viewport().update()
 
     def closeEvent(self, event):
         """При закрытии"""
@@ -395,17 +466,16 @@ class ChatListApp(QMainWindow):
             event.ignore()
 
     def view_full_response(self, row, column):
-        if column == 1:  # Только если кликнули по столбцу "Ответ" (индекс 1)
-            item = self.results_table.item(row, 1)
-            if item:
-                model_name = self.results_table.item(row, 0).text()  # Имя модели
-                response_text = item.text()
+        if column == 1:  # Только по столбцу "Ответ"
+            widget = self.results_table.cellWidget(row, 1)
+            if widget and isinstance(widget, QLabel):
+                model_name = self.results_table.item(row, 0).text()
+                response_text = widget.text()
 
-                # Создаём QMessageBox с возможностью копировать текст
                 msg_box = QMessageBox(self)
                 msg_box.setWindowTitle(f"Полный ответ: {model_name}")
                 msg_box.setText("Ответ скопирован в буфер. Нажмите 'Показать подробности' для просмотра.")
-                msg_box.setDetailedText(response_text)  # Полный текст в "Показать подробности"
+                msg_box.setDetailedText(response_text)
                 msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 msg_box.setIcon(QMessageBox.Icon.Information)
                 msg_box.exec()

@@ -66,7 +66,7 @@ class Network:
             }
 
             # Определяем модель (можно улучшить: хранить в БД)
-            model_name = "gpt-4" if "gpt" in model.name.lower() else "claude-3-haiku-20240307"
+            model_name = "gpt-40" if "gpt" in model.name.lower() else "allenai/molmo-2-8b:free"
 
             # Формируем тело запроса
             payload = {

@@ -14,6 +14,20 @@ from db import db
 from datetime import datetime
 from PyQt6.QtCore import Qt, QTimer  # Добавьте QTimer
 
+# THEME_COLORS.py
+THEME_COLORS = {
+    "light": {
+        "bg": "#f9f9f9",
+        "text": "#333333",
+        "border": "#ddd"
+    },
+    "dark": {
+        "bg": "#3c3c3c",
+        "text": "#ffffff",
+        "border": "#555"
+    }
+}
+
 LIGHT_BUTTON_STYLE = """
 QPushButton {
     background-color: #ffffff;
@@ -79,7 +93,7 @@ QHeaderView::section {
     font-weight: bold;
 }
 
-/* Таблицы */
+/* Таблица результатов */
 QTableWidget {
     background-color: #3c3c3c;
     alternate-background-color: #333333;
@@ -88,16 +102,20 @@ QTableWidget {
     color: #ffffff;
 }
 
+/* Ячейки таблицы */
 QTableWidget::item {
-    padding: 4px;
+    background-color: #3c3c3c;
+    color: #ffffff;
+    padding: 6px;
 }
 
+/* Выделенная ячейка */
 QTableWidget::item:selected {
     background-color: #5a5a5a;
     color: #ffffff;
 }
 
-/* Вспомогательные виджеты */
+/* Вкладки */
 QTabWidget::pane {
     border: 1px solid #3c3c3c;
 }
@@ -115,6 +133,7 @@ QTabBar::tab:selected {
     font-weight: bold;
 }
 
+/* Поля ввода, списки */
 QListWidget, QTextEdit, QLineEdit, QComboBox {
     background-color: #3c3c3c;
     border: 1px solid #555;
@@ -122,18 +141,42 @@ QListWidget, QTextEdit, QLineEdit, QComboBox {
     padding: 4px;
 }
 
+QPushButton {
+    background-color: #4a4a4a;
+    color: white;
+    border: 1px solid #555;
+    padding: 6px 10px;
+    border-radius: 6px;
+    min-height: 30px;
+    min-width: 80px;
+    text-align: center;
+}
+
+QPushButton:hover {
+    background-color: #5a5a5a;
+}
+
 QStatusBar {
     background-color: #333;
     color: #ccc;
 }
-
-QCheckBox::indicator {
-    width: 16px;
-    height: 16px;
-}
 """
 
+
 class ChatListApp(QMainWindow):
+    def get_label_style(self):
+        """Возвращает CSS для QLabel в зависимости от текущей темы"""
+        theme = self.db.get_setting("theme", "light")
+        colors = THEME_COLORS.get(theme, THEME_COLORS["light"])
+        return f"""
+        QLabel {{
+            background: {colors['bg']};
+            color: {colors['text']};
+            padding: 8px;
+            border-radius: 4px;
+        }}
+        """
+ 
     def __init__(self):
         super().__init__()
         self.db = db  # Инициализация БД
@@ -174,19 +217,21 @@ class ChatListApp(QMainWindow):
             self.setStyleSheet(LIGHT_BUTTON_STYLE)
             self.theme_btn.setText("🌙 Тёмкая тема")
             self.db.set_setting("theme", "light")
+        # 🔥 Обновляем стили внутри ячеек
+        self.update_response_styles()
 
     def load_theme(self):
         theme = self.db.get_setting("theme", "light")
         if theme == "dark":
             self.theme_btn.setChecked(True)
-            full_style = DARK_THEME + COMMON_BUTTON_STYLE_DARK
-            self.setStyleSheet(full_style)
+            self.setStyleSheet(DARK_THEME)
             self.theme_btn.setText("☀ Светлая тема")
         else:
             self.theme_btn.setChecked(False)
             self.setStyleSheet(LIGHT_BUTTON_STYLE)
             self.theme_btn.setText("🌙 Тёмкая тема")
-
+        # 🔥 Обновляем стили при старте
+        self.update_response_styles()
 
 
     def init_ui(self):
@@ -298,6 +343,15 @@ class ChatListApp(QMainWindow):
 
         results_layout.addLayout(action_layout)
 
+    def update_response_styles(self):
+        """Обновляет стиль всех QLabel в ячейках 'Ответ' (столбец 1)"""
+        for row in range(self.results_table.rowCount()):
+            scroll_area = self.results_table.cellWidget(row, 1)
+            if scroll_area and isinstance(scroll_area, QScrollArea):
+                label = scroll_area.widget()
+                if label and isinstance(label, QLabel):
+                    label.setStyleSheet(self.get_label_style())
+
     def load_saved_results(self):
         """Загружает сохранённые результаты из БД в таблицу"""
         # Очищаем текущие результаты
@@ -329,7 +383,7 @@ class ChatListApp(QMainWindow):
             label.setWordWrap(True)
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            label.setStyleSheet("QLabel { background: #f9f9f9; padding: 8px; }")
+            label.setStyleSheet(self.get_label_style())
 
             scroll = QScrollArea()
             scroll.setWidget(label)
@@ -641,28 +695,34 @@ class ChatListApp(QMainWindow):
             label.setWordWrap(True)
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            label.setStyleSheet("QLabel { background: #f9f9f9; padding: 8px; }")
+            label.setStyleSheet(self.get_label_style())
             
             # Создаём QScrollArea
             scroll = QScrollArea()
             scroll.setWidget(label)
             scroll.setWidgetResizable(True)  # Важно!
-            scroll.setStyleSheet("""
-                QScrollArea {
-                    border: 1px solid #ddd;
+            theme = self.db.get_setting("theme", "light")
+            scroll_bg = "#3c3c3c" if theme == "dark" else "#ffffff"
+            scroll_handle = "#888" if theme == "dark" else "#c0c0c0"
+            scroll_bg_area = "#333" if theme == "dark" else "#f0f0f0"
+
+            scroll.setStyleSheet(f"""
+                QScrollArea {{
+                    border: 1px solid {colors['border']};
                     border-radius: 4px;
-                    background: white;
-                }
-                QScrollBar:vertical {
+                    background: {scroll_bg};
+                }}
+                QScrollBar:vertical {{
                     width: 12px;
-                    background: #f0f0f0;
-                    border-left: 1px solid #ddd;
-                }
-                QScrollBar::handle:vertical {
-                    background: #c0c0c0;
+                    background: {scroll_bg_area};
+                    border-left: 1px solid {colors['border']};
+                }}
+                QScrollBar::handle:vertical {{
+                    background: {scroll_handle};
                     border-radius: 6px;
-                }
+                }}
             """)
+
 
             # Устанавливаем высоту прокручиваемой области
             scroll.setMaximumHeight(200)  # Максимальная высота — можно настроить

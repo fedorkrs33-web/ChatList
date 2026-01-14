@@ -136,8 +136,9 @@ class Database:
             ORDER BY r.saved_at DESC
         """
         try:
-            self.cursor.execute(query)
-            return self.cursor.fetchall()
+            with self.get_connection() as conn:
+                cursor = conn.execute(query)
+                return cursor.fetchall()
         except Exception as e:
             print(f"[DB] Ошибка при загрузке результатов: {e}")
             return []
@@ -176,17 +177,6 @@ class Database:
             )
             conn.commit()
 
-    def view_full_response(self, row, column):
-        if column == 1:  # Только для столбца "Ответ"
-            item = self.results_table.item(row, 1)
-            if item:
-                text = item.text()
-                # Окно с полным текстом
-                msg = QMessageBox(self)
-                msg.setWindowTitle(f"Полный ответ: {self.results_table.item(row, 0).text()}")
-                msg.setText(text)
-                msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                msg.exec()
     def get_results_by_prompt(self, prompt_id: int) -> List[Tuple]:
         """Получает все сохранённые результаты для промта"""
         with self.get_connection() as conn:

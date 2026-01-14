@@ -234,13 +234,37 @@ class ChatListApp(QMainWindow):
             # ID
             self.models_table.setItem(row_idx, 0, QTableWidgetItem(str(model.id)))
             # Имя
-            self.models_table.setItem(row_idx, 1, QTableWidgetItem(model.name))
-            # API URL
-            self.models_table.setItem(row_idx, 2, QTableWidgetItem(model.api_url or "—"))
-            # Внутреннее имя (model_name)
-            self.models_table.setItem(row_idx, 3, QTableWidgetItem(model.model_name or "—"))
-            # Провайдер
-            self.models_table.setItem(row_idx, 4, QTableWidgetItem(model.provider or "—"))
+            # Колонка 1: Имя — редактируемое
+            name_edit = QLineEdit(model.name)
+            name_edit.setPlaceholderText("Имя модели")
+            name_edit.editingFinished.connect(
+                lambda m=model, le=name_edit: self.update_model_field(m.id, "name", le.text())
+            )
+            self.models_table.setCellWidget(row_idx, 1, name_edit)
+
+            # Колонка 2: API URL — редактируемое
+            url_edit = QLineEdit(model.api_url or "")
+            url_edit.setPlaceholderText("https://...")
+            url_edit.editingFinished.connect(
+                lambda m=model, le=url_edit: self.update_model_field(m.id, "api_url", le.text())
+            )
+            self.models_table.setCellWidget(row_idx, 2, url_edit)
+
+            # Колонка 3: Внутреннее имя — редактируемое
+            model_name_edit = QLineEdit(model.model_name or "")
+            model_name_edit.setPlaceholderText("gpt-4, claude-3-haiku и т.п.")
+            model_name_edit.editingFinished.connect(
+                lambda m=model, le=model_name_edit: self.update_model_field(m.id, "model_name", le.text())
+            )
+            self.models_table.setCellWidget(row_idx, 3, model_name_edit)
+
+            # Колонка 4: Провайдер — можно тоже редактировать (опционально)
+            provider_edit = QLineEdit(model.provider or "")
+            provider_edit.setPlaceholderText("openai, anthropic...")
+            provider_edit.editingFinished.connect(
+                lambda m=model, le=provider_edit: self.update_model_field(m.id, "provider", le.text())
+            )
+            self.models_table.setCellWidget(row_idx, 4, provider_edit)
 
             # Чекбокс "Активна"
             active_checkbox = QCheckBox()
@@ -266,6 +290,17 @@ class ChatListApp(QMainWindow):
             btn_cell.setLayout(btn_layout)
 
             self.models_table.setCellWidget(row_idx, 6, btn_cell)
+
+    def update_model_field(self, model_id: int, field: str, value: str):
+        """Обновляет поле модели в БД"""
+        try:
+            # Обновляем в БД
+            Model.update_field(model_id, field, value)
+            # Обновляем статус
+            self.statusBar().showMessage(f"✅ Поле '{field}' модели обновлено", 3000)
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить поле:\n{str(e)}")
+
 
     def on_model_status_changed(self, model_id: int, state: int):
         """Вызывается при изменении состояния чекбокса модели"""
@@ -532,19 +567,20 @@ class ChatListApp(QMainWindow):
 
     def view_full_response(self, row, column):
         if column == 1:  # Только по столбцу "Ответ"
-            widget = self.results_table.cellWidget(row, 1)
-            if widget and isinstance(widget, QLabel):
-                model_name = self.results_table.item(row, 0).text()
-                response_text = widget.text()
+            scroll_area = self.results_table.cellWidget(row, 1)
+            if scroll_area and isinstance(scroll_area, QScrollArea):
+                label = scroll_area.widget()
+                if label and isinstance(label, QLabel):
+                    model_name = self.results_table.item(row, 0).text()
+                    response_text = label.text()
 
-                msg_box = QMessageBox(self)
-                msg_box.setWindowTitle(f"Полный ответ: {model_name}")
-                msg_box.setText("Ответ скопирован в буфер. Нажмите 'Показать подробности' для просмотра.")
-                msg_box.setDetailedText(response_text)
-                msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                msg_box.setIcon(QMessageBox.Icon.Information)
-                msg_box.exec()
-
+                    msg_box = QMessageBox(self)
+                    msg_box.setWindowTitle(f"Полный ответ: {model_name}")
+                    msg_box.setText("Ответ скопирован в буфер. Нажмите 'Показать подробности' для просмотра.")
+                    msg_box.setDetailedText(response_text)
+                    msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                    msg_box.setIcon(QMessageBox.Icon.Information)
+                    msg_box.exec()
 
 # ============= ЗАПУСК ПРИЛОЖЕНИЯ =============
 if __name__ == "__main__":

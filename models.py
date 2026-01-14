@@ -54,6 +54,18 @@ class Model:
             for row in rows
         ]
 
+    @classmethod
+    def update_field(cls, model_id: int, field: str, value: str):
+        """Обновляет одно поле модели"""
+        allowed_fields = {"name", "api_url", "model_name", "provider", "api_key_var", "is_active"}
+        if field not in allowed_fields:
+            raise ValueError(f"Нельзя обновить поле: {field}")
+
+        query = f"UPDATE models SET {field} = ? WHERE id = ?"
+        with db.get_connection() as conn:
+            conn.execute(query, (value, model_id))
+            conn.commit()
+
     @staticmethod
     def update_status(model_id: int, is_active: bool):
         """

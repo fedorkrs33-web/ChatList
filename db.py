@@ -53,7 +53,7 @@ INITIAL_MODELS = [
     ("DeepSeek", "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY", 1, "deepseek", "deepseek-chat"),
     ("GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
     ("Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
-    ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "allenai/molmo-2-8b:free"),
+    ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "openrouter/avto"),
 ]
 
 
@@ -167,6 +167,15 @@ class Database:
             )
             conn.commit()
 
+    def delete_prompt(self, prompt_id: int):
+        """Удаляет промт и все связанные результаты"""
+        with self.get_connection() as conn:
+            # Удаляем сначала результаты (из-за внешнего ключа)
+            conn.execute("DELETE FROM results WHERE prompt_id = ?", (prompt_id,))
+            # Затем промт
+            conn.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
+            conn.commit()
+
     # === Методы для results ===
     def save_result(self, prompt_id: int, model_id: int, response: str):
         """Сохраняет результат"""
@@ -205,7 +214,8 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.execute("SELECT value FROM settings WHERE key = ?", (key,))
             row = cursor.fetchone()
-            return row[0] if row else default
+            return row["value"] if row else default
+
 
 
 # Глобальный экземпляр БД (можно импортировать в других модулях)

@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QLabel, QLineEdit, QHeaderView, QTabWidget,
     QFileDialog, QMessageBox, QScrollArea
 )
+from functools import partial
 from PyQt6.QtCore import Qt
 from models import Model
 from network import Network
@@ -13,9 +14,130 @@ from db import db
 from datetime import datetime
 from PyQt6.QtCore import Qt, QTimer  # Добавьте QTimer
 
+LIGHT_BUTTON_STYLE = """
+QPushButton {
+    background-color: #ffffff;
+    color: #333333;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 2px 4px;
+    min-height: 24px;
+    min-width: 82px;
+    text-align: center;
+    font-family: Arial;
+    font-size: 12px;
+}
+
+QPushButton:hover {
+    background-color: #f8f8f8;
+    border: 1px solid #bbbbbb;
+}
+
+QPushButton:pressed {
+    background-color: #e0e0e0;
+    border: 1px solid #999999;
+}
+"""
+
+
+COMMON_BUTTON_STYLE_DARK = """
+QPushButton {
+    padding: 2px 4px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    min-height: 22px;
+    min-width: 82px;
+    text-align: center;
+    font-family: Arial;
+    font-size: 12px;
+    background-color: #4a4a4a;
+    color: white;
+}
+
+QPushButton:hover {
+    background-color: #5a5a5a;
+}
+
+QPushButton:pressed {
+    background-color: #6a6a6a;
+}
+"""
+
+DARK_THEME = """
+QWidget {
+    background-color: #2b2b2b;
+    color: #ffffff;
+    font-family: Arial;
+}
+
+/* Заголовки таблиц */
+QHeaderView::section {
+    background-color: #3c3c3c;
+    color: #ffffff;
+    padding: 4px;
+    border: 1px solid #555;
+    font-weight: bold;
+}
+
+/* Таблицы */
+QTableWidget {
+    background-color: #3c3c3c;
+    alternate-background-color: #333333;
+    border: 1px solid #555;
+    gridline-color: #555;
+    color: #ffffff;
+}
+
+QTableWidget::item {
+    padding: 4px;
+}
+
+QTableWidget::item:selected {
+    background-color: #5a5a5a;
+    color: #ffffff;
+}
+
+/* Вспомогательные виджеты */
+QTabWidget::pane {
+    border: 1px solid #3c3c3c;
+}
+
+QTabBar::tab {
+    background: #3c3c3c;
+    color: #ffffff;
+    padding: 8px 12px;
+    margin: 2px;
+    border-radius: 4px;
+}
+
+QTabBar::tab:selected {
+    background: #4a4a4a;
+    font-weight: bold;
+}
+
+QListWidget, QTextEdit, QLineEdit, QComboBox {
+    background-color: #3c3c3c;
+    border: 1px solid #555;
+    color: #ffffff;
+    padding: 4px;
+}
+
+QStatusBar {
+    background-color: #333;
+    color: #ccc;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+}
+"""
+
 class ChatListApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.db = db  # Инициализация БД
+
         self.setWindowTitle("ChatList — Сравнение AI-ответов")
         self.resize(1000, 700)
         self.statusBar()  # Инициализирует statusBar
@@ -24,8 +146,47 @@ class ChatListApp(QMainWindow):
         self.temp_results = {}
 
         self.init_ui()
+        # Добавляем кнопку в статус-бар
+        self.theme_btn = QPushButton("🌙 Тёмная тема")
+        self.theme_btn.setCheckable(True)
+        self.theme_btn.clicked.connect(self.toggle_theme)
+
+        # Добавляем в статус-бар
+        self.statusBar().addPermanentWidget(self.theme_btn)
+
+        # Загружаем сохранённую тему
+        self.load_theme()
+
+        # Загружаем промты и модели
         self.load_prompts()
         self.load_models()
+
+    def toggle_theme(self):
+        is_dark = self.theme_btn.isChecked()
+        if is_dark:
+            # Применяем тёмный фон + тёмные кнопки
+            full_style = DARK_THEME + COMMON_BUTTON_STYLE_DARK
+            self.setStyleSheet(full_style)
+            self.theme_btn.setText("☀ Светлая тема")
+            self.db.set_setting("theme", "dark")
+        else:
+            # Применяем только стиль кнопок (светлый)
+            self.setStyleSheet(LIGHT_BUTTON_STYLE)
+            self.theme_btn.setText("🌙 Тёмкая тема")
+            self.db.set_setting("theme", "light")
+
+    def load_theme(self):
+        theme = self.db.get_setting("theme", "light")
+        if theme == "dark":
+            self.theme_btn.setChecked(True)
+            full_style = DARK_THEME + COMMON_BUTTON_STYLE_DARK
+            self.setStyleSheet(full_style)
+            self.theme_btn.setText("☀ Светлая тема")
+        else:
+            self.theme_btn.setChecked(False)
+            self.setStyleSheet(LIGHT_BUTTON_STYLE)
+            self.theme_btn.setText("🌙 Тёмкая тема")
+
 
 
     def init_ui(self):
@@ -65,8 +226,10 @@ class ChatListApp(QMainWindow):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Дата
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # Промт
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Теги
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Действия
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)             # Теги
+        self.prompts_table.setColumnWidth(3,40)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)             # Действия
+        self.prompts_table.setColumnWidth(4, 200)
         self.prompts_table.setWordWrap(True)
         self.prompts_table.resizeRowsToContents()
         self.prompts_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -212,8 +375,10 @@ class ChatListApp(QMainWindow):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # API URL
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Внутреннее имя
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Провайдер
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Активна
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Управление
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)             # Активна
+        self.models_table.setColumnWidth(5, 60)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)             # Управление
+        self.models_table.setColumnWidth(6, 100)                                  
         models_layout.addWidget(self.models_table)
 
         # Кнопка обновления
@@ -230,6 +395,7 @@ class ChatListApp(QMainWindow):
 
         for row_idx, model in enumerate(models):
             self.models_table.insertRow(row_idx)
+            self.models_table.setRowHeight(row_idx, 45)
 
             # ID
             self.models_table.setItem(row_idx, 0, QTableWidgetItem(str(model.id)))
@@ -279,16 +445,18 @@ class ChatListApp(QMainWindow):
 
             # Кнопка "Обновить статус"
             update_btn = QPushButton("✅ Сохранить")
+            update_btn.setMinimumHeight(30)
+            update_btn.setMinimumWidth(100)
+            update_btn.setStyleSheet("")  # Убедитесь, что не переопределяется где-то
             update_btn.clicked.connect(
                 lambda _, mid=model.id, cb=active_checkbox: self.update_model_status(mid, cb)
             )
             btn_cell = QWidget()
             btn_layout = QHBoxLayout(btn_cell)
-            btn_layout.addWidget(update_btn)
             btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_layout.setContentsMargins(0, 0, 0, 0) # Отступы
             btn_cell.setLayout(btn_layout)
-
+            btn_layout.addWidget(update_btn)
             self.models_table.setCellWidget(row_idx, 6, btn_cell)
 
     def update_model_field(self, model_id: int, field: str, value: str):
@@ -323,24 +491,49 @@ class ChatListApp(QMainWindow):
         """Загружает все промты в таблицу"""
         self.prompts_table.setRowCount(0)
         prompts = db.get_all_prompts()
+
         for row_idx, p in enumerate(prompts):
             self.prompts_table.insertRow(row_idx)
+
             self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(p["id"])))
             self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(p["created_at"]))
             self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
             self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
 
-            # Кнопка "Копировать"
-            copy_btn = QPushButton("📋 Копировать")
-            copy_btn.clicked.connect(lambda checked, text=p["prompt"]: self.copy_prompt_to_input(text))
+            self.prompts_table.setRowHeight(row_idx, 45)
+
+            # Контейнер для кнопок
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.addWidget(copy_btn)
+            btn_layout.setContentsMargins(2, 0, 0, 2)
+            btn_layout.setSpacing(3)
             btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            btn_layout.setContentsMargins(4, 2, 4, 2)
+
+            # Создаём кнопки
+            copy_btn = QPushButton("📋 Копировать")
+            copy_btn.setFixedSize(90, 30)
+
+            delete_btn = QPushButton("🗑️ Удалить")
+            delete_btn.setFixedSize(90, 30)
+            delete_btn.setStyleSheet("QPushButton { color: #a00; }")
+
+            # Сохраняем ссылки на кнопки внутри виджета, чтобы Python не удалил
+            btn_widget.copy_btn = copy_btn
+            btn_widget.delete_btn = delete_btn
+
+            # Подключаем сигналы
+            from functools import partial
+            copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
+            delete_btn.clicked.connect(partial(self.delete_prompt, p["id"]))
+
+            # Добавляем в макет
+            btn_layout.addWidget(copy_btn)
+            btn_layout.addWidget(delete_btn)
             btn_widget.setLayout(btn_layout)
 
+            # Устанавливаем в таблицу
             self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
+
 
     def on_search(self):
         """Поиск в промтах"""
@@ -358,16 +551,38 @@ class ChatListApp(QMainWindow):
             self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
             self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
 
-            # Кнопка "Копировать"
-            copy_btn = QPushButton("📋 Копировать")
-            copy_btn.clicked.connect(lambda checked, text=p["prompt"]: self.copy_prompt_to_input(text))
+            # Контейнер для кнопок
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.addWidget(copy_btn)
-            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             btn_layout.setContentsMargins(4, 2, 4, 2)
+            btn_layout.setSpacing(6)
+            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            # Создаём кнопки
+            copy_btn = QPushButton("📋 Копировать")
+            copy_btn.setFixedSize(90, 26)
+
+            delete_btn = QPushButton("🗑️ Удалить")
+            delete_btn.setFixedSize(90, 26)
+            delete_btn.setStyleSheet("QPushButton { color: #a00; }")
+
+            # Сохраняем ссылки на кнопки внутри виджета, чтобы Python не удалил
+            btn_widget.copy_btn = copy_btn
+            btn_widget.delete_btn = delete_btn
+
+            # Подключаем сигналы
+            from functools import partial
+            copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
+            delete_btn.clicked.connect(partial(self.delete_prompt, p["id"]))
+
+            # Добавляем в макет
+            btn_layout.addWidget(copy_btn)
+            btn_layout.addWidget(delete_btn)
             btn_widget.setLayout(btn_layout)
+
+            # Устанавливаем в таблицу
             self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
+
 
     def copy_prompt_to_input(self, text):
         """Копирует переданный текст промта в поле ввода"""
@@ -391,6 +606,7 @@ class ChatListApp(QMainWindow):
 
         # Сохраняем промт в БД
         prompt_id = db.save_prompt(prompt)
+        print(f"[DEBUG] Промт сохранён, ID: {prompt_id}")
 
         # Очищаем предыдущие результаты
         self.clear_results()
@@ -469,6 +685,26 @@ class ChatListApp(QMainWindow):
 
         # После цикла
         QTimer.singleShot(100, self.resize_all_rows)
+
+    def delete_prompt(self, prompt_id: int):
+        """Удаляет промт и все его результаты"""
+        reply = QMessageBox.question(
+            self,
+            "Удалить промт?",
+            "Вы уверены, что хотите удалить этот промт и все его ответы?\n\nЭто действие нельзя отменить.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.No:
+            return
+
+        try:
+            # Удаляем через БД
+            db.delete_prompt(prompt_id)
+            # Обновляем таблицу
+            self.load_prompts()
+            self.statusBar().showMessage("✅ Промт удалён", 3000)
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось удалить промт:\n{str(e)}")
 
 
     def save_selected(self):

@@ -15,7 +15,7 @@ class Model:
         self.api_key_var = api_key_var
         self.is_active = is_active
         self.provider = provider
-        self.model_name = model_name
+        self.model_name = model_name or ""  # ← гарантируем строку
 
     @staticmethod
     def load_all() -> List['Model']:
@@ -49,7 +49,8 @@ class Model:
                 api_url=row["api_url"],
                 api_key_var=row["api_key_var"],
                 is_active=True,
-                provider=row["provider"]
+                provider=row["provider"],
+                model_name=row["model_name"]
             )
             for row in rows
         ]

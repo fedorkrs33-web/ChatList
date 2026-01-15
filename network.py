@@ -49,26 +49,34 @@ class Network:
 
     @staticmethod
     def _send_openai_compatible(model: Model, prompt: str) -> str:
-        """Отправка в OpenAI-совместимые API"""
+        """Отправка в OpenAI-совместимые API с полной поддержкой БД"""
         try:
-            # Получаем API-ключ
+            # 🔑 Получаем API-ключ по имени переменной из БД
             try:
                 api_key = Config.get_api_key(model.api_key_var)
+                if not api_key:
+                    error_msg = f"🔑 Ключ не найден: {model.api_key_var}"
+                    print(error_msg)
+                    return error_msg
             except ValueError as e:
                 error_msg = f"🔑 Ошибка ключа: {e}"
                 print(error_msg)
                 return error_msg
 
-            # Формируем заголовки
+            # 🧩 Берём имя модели из БД (важно!)
+            model_name = (model.model_name or "").strip()
+            if not model_name:
+                error_msg = "⚠️ Не указано имя модели в БД"
+                print(error_msg)
+                return error_msg
+
+            # 📦 Заголовки
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             }
 
-            # Определяем модель (можно улучшить: хранить в БД)
-            model_name = "gpt-40" if "gpt" in model.name.lower() else "allenai/molmo-2-8b:free"
-
-            # Формируем тело запроса
+            # 📝 Тело запроса
             payload = {
                 "model": model_name,
                 "messages": [{"role": "user", "content": prompt}],
@@ -76,25 +84,28 @@ class Network:
                 "max_tokens": 1024,
             }
 
-            # Отправляем запрос
-            print(f"   🌐 POST {model.api_url}")
+            # 🌐 Отправляем
+            print(f"   🌐 POST {model.api_url} [model: {model_name}]")
             response = requests.post(
                 model.api_url,
                 headers=headers,
                 json=payload,
-                timeout=30
+                timeout=30,
+                verify=False  # ⚠️ Только если API требует (например, GigaChat)
             )
 
-            # Логируем статус
             print(f"   🔎 Status: {response.status_code}")
 
-            if response.status_code == 200:
-                data = response.json()
-                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                if content:
-                    print("   ✅ Ответ получен")
-                    return content.strip()
-                return "⚠️ Ответ получен, но пустой"
+            if response.status_code in (200, 201):
+                try:
+                    data = response.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    if content:
+                        print("   ✅ Ответ получен")
+                        return content.strip()
+                    return "⚠️ Ответ получен, но пустой"
+                except Exception as e:
+                    return f"⚠️ Ошибка парсинга: {e}"
 
             else:
                 try:

@@ -96,6 +96,11 @@ class DatabaseViewer(QMainWindow):
         self.btn_delete.setEnabled(False)
         crud_layout.addWidget(self.btn_delete)
 
+        self.btn_duplicate = QPushButton("⧉ Копировать как новую")
+        self.btn_duplicate.clicked.connect(self.duplicate_record)
+        self.btn_duplicate.setEnabled(False)
+        crud_layout.addWidget(self.btn_duplicate)
+
         layout.addLayout(crud_layout)
 
         # Подключение события выбора строки
@@ -229,6 +234,7 @@ class DatabaseViewer(QMainWindow):
         selected = self.table_widget.currentRow()
         self.btn_edit.setEnabled(selected >= 0)
         self.btn_delete.setEnabled(selected >= 0)
+        self.btn_duplicate.setEnabled(selected >= 0)
 
     def create_record(self):
         if not self.current_table:
@@ -415,6 +421,108 @@ class DatabaseViewer(QMainWindow):
                 self.refresh_table()
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось удалить запись:\n{str(e)}")
+
+    def duplicate_record(self):
+        """Копирует выбранную запись как новую (с опциональным новым ID)"""
+        selected = self.table_widget.currentRow()
+        if selected < 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите строку для копирования.")
+            return
+
+        # Получаем данные строки
+        row_data = []
+        for col in range(self.table_widget.columnCount()):
+            item = self.table_widget.item(selected, col)
+            row_data.append(item.text() if item else "")
+
+        # Определяем PK
+        if self.primary_key == "ROWID":
+            pk_index = 0
+            pk_value = row_data[0]
+        else:
+            header_labels = [self.table_widget.horizontalHeaderItem(i).text() for i in range(self.table_widget.columnCount())]
+            try:
+                pk_index = header_labels.index(self.primary_key)
+                pk_value = row_data[pk_index]
+            except ValueError:
+                QMessageBox.critical(self, "Ошибка", "Не удалось найти столбец с первичным ключом")
+                return
+
+        # Получаем структуру таблицы
+        cursor = self.connection.cursor()
+        cursor.execute(f"PRAGMA table_info({self.current_table})")
+        columns = cursor.fetchall()
+
+        # Создаём диалог редактирования
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Копировать запись — {self.current_table}")
+        layout = QFormLayout()
+
+        inputs = {}
+        col_index = 0
+        for col in columns:
+            if col[5] == 1:  # PK
+                current_value = ""  # Оставим пустым, чтобы пользователь сам ввёл ID
+            else:
+                value = row_data[col_index + (1 if self.primary_key == "ROWID" else 0)]
+                current_value = value
+
+            input_field = QLineEdit(current_value)
+            label = f"{col[1]} ({col[2]})"
+            if col[5] == 1:  # PK
+                label += " (новый ID)"
+            layout.addRow(label, input_field)
+            inputs[col[1]] = input_field
+            col_index += 1
+
+        # Кнопки
+        buttons = QHBoxLayout()
+        btn_ok = QPushButton("Создать копию")
+        btn_ok.clicked.connect(dialog.accept)
+        btn_cancel = QPushButton("Отмена")
+        btn_cancel.clicked.connect(dialog.reject)
+        buttons.addWidget(btn_ok)
+        buttons.addWidget(btn_cancel)
+        layout.addRow(buttons)
+
+        dialog.setLayout(layout)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            try:
+                # Собираем данные
+                values = []
+                columns_names = []
+                for col in columns:
+                    col_name = col[1]
+                    col_value = inputs[col_name].text()
+
+                    # Если это PK и пусто — ставим NULL (автоинкремент)
+                    if col[5] == 1:
+                        if not col_value.strip():
+                            col_value = None  # Позволим автоинкременту сработать
+                        else:
+                            try:
+                                col_value = int(col_value)
+                            except ValueError:
+                                QMessageBox.warning(self, "Ошибка", f"Значение {col_name} должно быть целым числом")
+                                return
+
+                    columns_names.append(col_name)
+                    values.append(col_value)
+
+                # Формируем запрос
+                placeholders = ["?" for _ in values]
+                query = f"INSERT INTO {self.current_table} ({', '.join(columns_names)}) VALUES ({', '.join(placeholders)})"
+
+                cursor = self.connection.cursor()
+                cursor.execute(query, values)
+                self.connection.commit()
+
+                QMessageBox.information(self, "Успех", "Запись скопирована как новая!")
+                self.refresh_table()
+
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось создать копию:\n{str(e)}")
 
     def closeEvent(self, event):
         if self.connection:

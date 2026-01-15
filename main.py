@@ -350,12 +350,39 @@ class ChatListApp(QMainWindow):
         results_layout.addLayout(action_layout)
 
     def update_response_styles(self):
-        """Обновляет стиль всех QLabel в ячейках 'Ответ' (столбец 1)"""
+        theme = self.db.get_setting("theme", "light")
+        if theme == "dark":
+            bg_color = "#3c3c3c"
+            border_color = "#555"
+            scroll_bg = "#333"
+            handle_color = "#888"
+        else:
+            bg_color = "#ffffff"
+            border_color = "#ddd"
+            scroll_bg = "#f0f0f0"
+            handle_color = "#c0c0c0"
+
         for row in range(self.results_table.rowCount()):
             scroll_area = self.results_table.cellWidget(row, 1)
-            if scroll_area and isinstance(scroll_area, QScrollArea):
+            if isinstance(scroll_area, QScrollArea):
+                scroll_area.setStyleSheet(f"""
+                    QScrollArea {{
+                        border: 1px solid {border_color};
+                        border-radius: 4px;
+                        background: {bg_color};
+                    }}
+                    QScrollBar:vertical {{
+                        width: 12px;
+                        background: {scroll_bg};
+                        border-left: 1px solid {border_color};
+                    }}
+                    QScrollBar::handle:vertical {{
+                        background: {handle_color};
+                        border-radius: 6px;
+                    }}
+                """)
                 label = scroll_area.widget()
-                if label and isinstance(label, QLabel):
+                if isinstance(label, QLabel):
                     label.setStyleSheet(self.get_label_style())
 
     def load_saved_results(self):
@@ -642,66 +669,115 @@ class ChatListApp(QMainWindow):
             self.preview_table.setItem(row_idx, 3, QTableWidgetItem(item["saved_at"]))
 
     def load_preview(self, row, column):
-        """Загружает и отображает Markdown-предпросмотр"""
+        """Загружает и отображает Markdown-предпросмотр с отступами"""
         result_id = int(self.preview_table.item(row, 0).text())
         prompt = self.preview_table.item(row, 1).text()
 
-        # Получаем все ответы для этого результата
         responses = self.db.get_responses_by_result_id(result_id)
         if not responses:
-            self.preview_text.setHtml("<p>Нет данных</p>")
+            self.preview_text.setHtml("<p><i>Нет данных</i></p>")
             return
 
-        # Формируем Markdown
+        # Формируем Markdown с пустыми строками для отступов
         md_lines = []
         md_lines.append(f"# {prompt.strip()}")
         md_lines.append(f"*Дата: {responses[0]['saved_at']}*")
-        md_lines.append("")
+        md_lines.append("")  # Пустая строка — отступ
 
         for r in responses:
             md_lines.append(f"## {r['model_name']}")
-            # Экранируем и форматируем ответ
-            response_text = r['response'].replace('\n', '  \n> ')  # Переносы как в Markdown
-            md_lines.append(f"> {response_text}")
-            md_lines.append("")
+            # Сохраняем переносы и пустые строки
+            response_text = r['response'].strip()
+            # Разбиваем на строки и обрабатываем
+            lines = response_text.splitlines()
+            for line in lines:
+                if line.strip() == '':
+                    md_lines.append(">")  # Пустая строка в цитате
+                else:
+                    md_lines.append(f"> {line}")
+            md_lines.append("")  # Отступ между моделями
 
-        # Преобразуем Markdown в простой HTML (без сторонних библиотек)
         html = self.md_to_simple_html("\n".join(md_lines))
         self.preview_text.setHtml(html)
 
+    def escape_html(self, text: str) -> str:
+        """Экранирует HTML-символы"""
+        return (text
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+                .replace("'", "&#039;"))
+
     def md_to_simple_html(self, md: str) -> str:
-        """Упрощённый конвертер Markdown → HTML (без внешних зависимостей)"""
+        """Улучшенный упрощённый конвертер Markdown → HTML с поддержкой отступов и абзацев"""
         lines = md.split('\n')
         html_lines = []
-        in_block = False
+        in_block = False  # Находимся ли внутри <blockquote>
+
+        # Стили темы
+        theme = self.db.get_setting("theme", "light")
+        if theme == "dark":
+            block_bg = "#3c3c3c"
+            border = "#555"
+            text = "#ffffff"
+        else:
+            block_bg = "#f9f9f9"
+            border = "#ddd"
+            text = "#333333"
 
         for line in lines:
-            line = line.strip()
+            stripped = line.rstrip()  # Убираем пробелы справа
 
-            if line.startswith('# '):
-                html_lines.append(f"<h1>{line[2:]}</h1>")
-            elif line.startswith('## '):
-                html_lines.append(f"<h2>{line[3:]}</h2>")
-            elif line.startswith('> '):
+            # Обработка заголовков
+            if stripped.startswith('# '):
+                if in_block:
+                    html_lines.append('</blockquote>')
+                    in_block = False
+                html_lines.append(f"<h1 style='color: #007acc;'>{self.escape_html(stripped[2:])}</h1>")
+            elif stripped.startswith('## '):
+                if in_block:
+                    html_lines.append('</blockquote>')
+                    in_block = False
+                html_lines.append(f"<h2 style='color: #007acc;'>{self.escape_html(stripped[3:])}</h2>")
+
+            # Обработка цитат
+            elif stripped.startswith('> '):
+                content = stripped[2:]  # Убираем "> "
+
                 if not in_block:
-                    html_lines.append('<blockquote style="color: #666; border-left: 3px solid #ccc; margin: 10px 0; padding-left: 15px;">')
+                    # Начинаем цитату
+                    html_lines.append(f'<blockquote style="background: {block_bg}; '
+                                    f'border-left: 4px solid #007acc; margin: 10px 0; padding: 12px 15px; '
+                                    f'font-style: italic; color: {text}; border-radius: 0 4px 4px 0;">')
                     in_block = True
-                html_lines.append(f"{line[2:]}<br>")
-            elif line == '':
-                if in_block:
-                    html_lines.append('</blockquote>')
-                    in_block = False
-            else:
-                if in_block:
-                    html_lines.append('</blockquote>')
-                    in_block = False
-                html_lines.append(f"<p>{line}</p>")
 
+                if content == '':
+                    # Пустая строка в цитате — добавим пустой абзац для отступа
+                    html_lines.append('<br>')
+                else:
+                    # Экранируем и добавляем текст
+                    html_lines.append(f"{self.escape_html(content)}<br>")
+
+            else:
+                # Обычный текст или пустая строка
+                if in_block:
+                    html_lines.append('</blockquote>')
+                    in_block = False
+
+                if stripped == '':
+                    # Пустая строка — отступ между абзацами
+                    html_lines.append('<br>')
+                else:
+                    # Обычный абзац
+                    html_lines.append(f"<p style='color: {text}; margin: 8px 0;'>{self.escape_html(stripped)}</p>")
+
+        # Закрываем блок, если остались открытыми
         if in_block:
             html_lines.append('</blockquote>')
 
+        # Объединяем всё
         return ''.join(html_lines)
-
 
     def load_models(self):
         """Загружает модели из БД в таблицу"""
@@ -921,7 +997,6 @@ class ChatListApp(QMainWindow):
 
         # Сохраняем промт в БД
         prompt_id = db.save_prompt(prompt)
-        print(f"[DEBUG] Промт сохранён, ID: {prompt_id}")
 
         # Очищаем предыдущие результаты
         self.clear_results()
@@ -961,26 +1036,35 @@ class ChatListApp(QMainWindow):
             # Создаём QScrollArea
             scroll = QScrollArea()
             scroll.setWidget(label)
-            scroll.setWidgetResizable(True)  # Важно!
+            scroll.setWidgetResizable(True)
+
+            # 🔧 Определяем цвета
             theme = self.db.get_setting("theme", "light")
-            scroll_bg = "#3c3c3c" if theme == "dark" else "#ffffff"
-            scroll_handle = "#888" if theme == "dark" else "#c0c0c0"
-            scroll_bg_area = "#333" if theme == "dark" else "#f0f0f0"
+            if theme == "dark":
+                bg_color = "#3c3c3c"
+                border_color = "#555"
+                scroll_bg = "#333"
+                handle_color = "#888"
+            else:
+                bg_color = "#ffffff"
+                border_color = "#ddd"
+                scroll_bg = "#f0f0f0"
+                handle_color = "#c0c0c0"
 
             scroll.setStyleSheet(f"""
                 QScrollArea {{
-                    border: 1px solid {colors['border']};
-                    border-radius: 4px;
-                    background: {scroll_bg};
-                }}
-                QScrollBar:vertical {{
-                    width: 12px;
-                    background: {scroll_bg_area};
-                    border-left: 1px solid {colors['border']};
-                }}
-                QScrollBar::handle:vertical {{
-                    background: {scroll_handle};
-                    border-radius: 6px;
+                border: 1px solid {border_color};
+                border-radius: 4px;
+                background: {bg_color};
+            }}
+            QScrollBar:vertical {{
+                width: 12px;
+                background: {scroll_bg};
+                border-left: 1px solid {border_color};
+            }}
+            QScrollBar::handle:vertical {{
+                background: {handle_color};
+                border-radius: 6px;
                 }}
             """)
 

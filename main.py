@@ -56,11 +56,11 @@ QPushButton:pressed {
 
 COMMON_BUTTON_STYLE_DARK = """
 QPushButton {
-    padding: 2px 4px;
+    padding: 2px 3px;
     border: 1px solid #555;
     border-radius: 4px;
     min-height: 22px;
-    min-width: 82px;
+    min-width: 84px;
     text-align: center;
     font-family: Arial;
     font-size: 12px;
@@ -276,7 +276,7 @@ class ChatListApp(QMainWindow):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)             # Теги
         self.prompts_table.setColumnWidth(3,40)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)             # Действия
-        self.prompts_table.setColumnWidth(4, 200)
+        self.prompts_table.setColumnWidth(4, 210)
         self.prompts_table.setWordWrap(True)
         self.prompts_table.resizeRowsToContents()
         self.prompts_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -579,7 +579,7 @@ class ChatListApp(QMainWindow):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)             # Активна
         self.models_table.setColumnWidth(5, 60)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)             # Управление
-        self.models_table.setColumnWidth(6, 100)                                  
+        self.models_table.setColumnWidth(6, 110)                                  
         models_layout.addWidget(self.models_table)
 
         # Кнопка обновления

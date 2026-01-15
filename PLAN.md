@@ -80,6 +80,7 @@ chatlist/
 ```bat
 python -m PyInstaller --onefile --windowed main.py
 [ ] Проверить работу .exe
-Этап 10: Документация
+
+## Этап 10: Документация
 [ ] Обновить README.md
 [ ] Добавить скриншоты интерфейса

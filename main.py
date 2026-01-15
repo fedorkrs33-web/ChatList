@@ -247,6 +247,8 @@ class ChatListApp(QMainWindow):
         tabs.addTab(self.tab_prompts, "Промты")
         tabs.addTab(self.tab_results, "Результаты")
         tabs.addTab(self.create_models_tab(), "Модели")
+        tabs.addTab(self.create_preview_tab(), "Предпросмотр Markdown")
+
         layout.addWidget(tabs)
 
         # ============= ВКЛАДКА 1: ПРОМТЫ =============
@@ -441,7 +443,121 @@ class ChatListApp(QMainWindow):
         models_layout.addWidget(refresh_btn)
 
         return self.tab_models
-    
+    #============= ВКЛАДКА 4: Предпросмотр Markdown =============
+    def create_preview_tab(self):
+        """Создаёт вкладку 'Предпросмотр Markdown'"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Заголовок
+        layout.addWidget(QLabel("Сохранённые результаты — предпросмотр Markdown"))
+
+        # Таблица с результатами
+        self.preview_table = QTableWidget()
+        self.preview_table.setColumnCount(4)
+        self.preview_table.setHorizontalHeaderLabels(["ID", "Промт", "Модели", "Дата"])
+        header = self.preview_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.preview_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.preview_table.setWordWrap(True)
+        self.preview_table.resizeRowsToContents()
+
+        # Подключение: при выборе строки — обновить предпросмотр
+        self.preview_table.cellClicked.connect(self.load_preview)
+
+        layout.addWidget(self.preview_table)
+
+        # Поле предпросмотра
+        self.preview_text = QTextEdit()
+        self.preview_text.setReadOnly(True)
+        self.preview_text.setStyleSheet("font-family: Arial; font-size: 12px;")
+        layout.addWidget(self.preview_text)
+
+        # Кнопка: обновить список
+        refresh_btn = QPushButton("🔄 Обновить")
+        refresh_btn.clicked.connect(self.load_preview_list)
+        layout.addWidget(refresh_btn)
+
+        return tab
+
+    def load_preview_list(self):
+        """Загружает список сохранённых результатов в таблицу"""
+        self.preview_table.setRowCount(0)
+        data = self.db.get_saved_results_with_models()
+
+        for row_idx, item in enumerate(data):
+            self.preview_table.insertRow(row_idx)
+
+            self.preview_table.setItem(row_idx, 0, QTableWidgetItem(str(item["id"])))
+            self.preview_table.setItem(row_idx, 1, QTableWidgetItem(item["prompt"]))
+            self.preview_table.setItem(row_idx, 2, QTableWidgetItem(item["models"]))
+            self.preview_table.setItem(row_idx, 3, QTableWidgetItem(item["saved_at"]))
+
+    def load_preview(self, row, column):
+        """Загружает и отображает Markdown-предпросмотр"""
+        result_id = int(self.preview_table.item(row, 0).text())
+        prompt = self.preview_table.item(row, 1).text()
+
+        # Получаем все ответы для этого результата
+        responses = self.db.get_responses_by_result_id(result_id)
+        if not responses:
+            self.preview_text.setHtml("<p>Нет данных</p>")
+            return
+
+        # Формируем Markdown
+        md_lines = []
+        md_lines.append(f"# {prompt.strip()}")
+        md_lines.append(f"*Дата: {responses[0]['saved_at']}*")
+        md_lines.append("")
+
+        for r in responses:
+            md_lines.append(f"## {r['model_name']}")
+            # Экранируем и форматируем ответ
+            response_text = r['response'].replace('\n', '  \n> ')  # Переносы как в Markdown
+            md_lines.append(f"> {response_text}")
+            md_lines.append("")
+
+        # Преобразуем Markdown в простой HTML (без сторонних библиотек)
+        html = self.md_to_simple_html("\n".join(md_lines))
+        self.preview_text.setHtml(html)
+
+    def md_to_simple_html(self, md: str) -> str:
+        """Упрощённый конвертер Markdown → HTML (без внешних зависимостей)"""
+        lines = md.split('\n')
+        html_lines = []
+        in_block = False
+
+        for line in lines:
+            line = line.strip()
+
+            if line.startswith('# '):
+                html_lines.append(f"<h1>{line[2:]}</h1>")
+            elif line.startswith('## '):
+                html_lines.append(f"<h2>{line[3:]}</h2>")
+            elif line.startswith('> '):
+                if not in_block:
+                    html_lines.append('<blockquote style="color: #666; border-left: 3px solid #ccc; margin: 10px 0; padding-left: 15px;">')
+                    in_block = True
+                html_lines.append(f"{line[2:]}<br>")
+            elif line == '':
+                if in_block:
+                    html_lines.append('</blockquote>')
+                    in_block = False
+            else:
+                if in_block:
+                    html_lines.append('</blockquote>')
+                    in_block = False
+                html_lines.append(f"<p>{line}</p>")
+
+        if in_block:
+            html_lines.append('</blockquote>')
+
+        return ''.join(html_lines)
+
+
     def load_models(self):
         """Загружает модели из БД в таблицу"""
         self.models_table.setRowCount(0)

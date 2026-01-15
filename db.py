@@ -215,6 +215,39 @@ class Database:
             cursor = conn.execute("SELECT value FROM settings WHERE key = ?", (key,))
             row = cursor.fetchone()
             return row["value"] if row else default
+    def get_saved_results_with_models(self):
+        """Возвращает список сохранённых результатов с промтами и моделями"""
+        query = """
+        SELECT 
+            r.id,
+            p.prompt,
+            GROUP_CONCAT(m.name, ', ') as models,
+            r.saved_at
+        FROM results r
+        JOIN prompts p ON r.prompt_id = p.id
+        JOIN models m ON r.model_id = m.id
+        GROUP BY r.id, p.prompt, r.saved_at
+        ORDER BY r.saved_at DESC
+        """
+        with self.get_connection() as conn:
+            conn.row_factory = self._dict_factory
+            return conn.execute(query).fetchall()
+
+    def get_responses_by_result_id(self, result_id: int):
+        """Получает все ответы для одного сохранённого результата"""
+        query = """
+        SELECT 
+            r.response,
+            m.name as model_name,
+            r.saved_at
+        FROM results r
+        JOIN models m ON r.model_id = m.id
+        WHERE r.id = ?
+        ORDER BY m.name
+        """
+        with self.get_connection() as conn:
+            conn.row_factory = self._dict_factory
+            return conn.execute(query, (result_id,)).fetchall()
 
 
 

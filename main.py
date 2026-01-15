@@ -343,6 +343,10 @@ class ChatListApp(QMainWindow):
         self.load_saved_btn.clicked.connect(self.load_saved_results)
         action_layout.addWidget(self.load_saved_btn)
 
+        self.export_html_btn = QPushButton("🌐 Экспорт в HTML")
+        self.export_html_btn.clicked.connect(self.export_to_html)
+        action_layout.addWidget(self.export_html_btn)
+
         results_layout.addLayout(action_layout)
 
     def update_response_styles(self):
@@ -415,6 +419,147 @@ class ChatListApp(QMainWindow):
         # Обновляем статус
         self.statusBar().showMessage(f"Загружено {len(saved_results)} сохранённых ответов", 3000)
 
+    def export_to_html(self):
+        """Экспортирует выбранные ответы в HTML-файл"""
+        if not self.temp_results:
+            QMessageBox.warning(self, "Экспорт", "Нет результатов для экспорта.")
+            return
+
+        # Собираем выбранные ответы
+        selected_responses = []
+        for row_idx, (model_id, response, checkbox) in self.temp_results.items():
+            if checkbox.isChecked():
+                model_name = self.results_table.item(row_idx, 0).text()
+                selected_responses.append((model_name, response))
+
+        if not selected_responses:
+            QMessageBox.warning(self, "Экспорт", "Ничего не выбрано для экспорта.")
+            return
+
+        # Диалог сохранения
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить как HTML",
+            "results.html",
+            "HTML Files (*.html);;All Files (*)"
+        )
+        if not file_path:
+            return
+
+        # Получаем текущую тему для стилей
+        theme = self.db.get_setting("theme", "light")
+        html_content = self.generate_html(selected_responses, theme)
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            QMessageBox.information(self, "Готово", f"Экспорт в HTML сохранён:\n{file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
+
+    def generate_html(self, responses: list, theme: str) -> str:
+        """Генерирует HTML с встроенными стилями"""
+        # Цвета в зависимости от темы
+        if theme == "dark":
+            bg = "#2b2b2b"
+            text = "#ffffff"
+            block_bg = "#3c3c3c"
+            border = "#555"
+            accent = "#007acc"
+        else:
+            bg = "#ffffff"
+            text = "#333333"
+            block_bg = "#f9f9f9"
+            border = "#ddd"
+            accent = "#0056b3"
+
+            # Начало HTML
+            html = f"""<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>ChatList — Результаты</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{
+                background-color: {bg};
+                color: {text};
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                margin: 0;
+                padding: 20px;
+            }}
+            .container {{
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            h1 {{
+                color: {accent};
+                border-bottom: 2px solid {accent};
+                padding-bottom: 10px;
+            }}
+            h2 {{
+                color: {accent};
+                margin-top: 20px;
+            }}
+            blockquote {{
+                background-color: {block_bg};
+                border-left: 4px solid {accent};
+                margin: 15px 0;
+                padding: 12px 15px;
+                border-radius: 0 4px 4px 0;
+                font-style: italic;
+            }}
+            .footer {{
+                margin-top: 30px;
+                color: #777;
+                font-size: 0.9em;
+                text-align: center;
+            }}
+            .divider {{
+                border: 0;
+                border-top: 1px solid {border};
+                margin: 20px 0;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>ChatList — Результаты</h1>
+            <p><strong>Дата:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <hr class="divider">
+    """
+
+            # Добавляем ответы
+            for model_name, response in responses:
+                response_escaped = (
+                    response
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\n", "<br>")
+                )
+                html += f"""
+            <h2>{model_name}</h2>
+            <blockquote>
+                {response_escaped}
+            </blockquote>
+            <hr class="divider">
+    """
+
+            # Завершение HTML
+            html += f"""
+            <div class="footer">
+                Экспорт сгенерирован ChatList • <a href="https://github.com/fedorkrs33-web/ChatList" style="color: {accent}; text-decoration: none;">GitHub</a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+        return html
+
+        
      #============= ВКЛАДКА 3: МОДЕЛИ =============
     def create_models_tab(self):
         """Создаёт вкладку 'Модели'"""

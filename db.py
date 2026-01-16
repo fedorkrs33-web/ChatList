@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS settings (
 
 # Начальные данные для моделей (можно расширить)
 INITIAL_MODELS = [
-    ("DeepSeek", "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_API_KEY", 1, "deepseek", "deepseek-chat"),
+    ("DeepSeek", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "deepseek-v3.2"),
+    ("Anthropic", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "claude-3-haiku"),
     ("GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
     ("Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
     ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "openrouter/avto"),
@@ -144,19 +145,17 @@ class Database:
             return []
 
     # === Методы для models ===
-    def get_active_models(self) -> List[Tuple]:
-        """Возвращает все активные модели"""
+    def get_active_models(self):
+        query = "SELECT * FROM models WHERE is_active = 1 ORDER BY id"
         with self.get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT id, name, api_url, api_key_var, provider, model_name FROM models WHERE is_active = 1 ORDER BY name"
-            )
-            return cursor.fetchall()
+            conn.row_factory = self._dict_factory
+            return conn.execute(query).fetchall()
 
-    def get_all_models(self) -> List[Tuple]:
-        """Возвращает все модели (для настройки)"""
+    def get_all_models(self):
+        query = "SELECT * FROM models ORDER BY id"
         with self.get_connection() as conn:
-            cursor = conn.execute("SELECT * FROM models ORDER BY name")
-            return cursor.fetchall()
+            conn.row_factory = self._dict_factory
+            return conn.execute(query).fetchall()
 
     def update_model_status(self, model_id: int, is_active: bool):
         """Включает/выключает модель"""

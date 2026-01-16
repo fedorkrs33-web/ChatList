@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QTableWidget, QTableWidgetItem,
     QCheckBox, QLabel, QLineEdit, QHeaderView, QTabWidget,
-    QFileDialog, QMessageBox, QScrollArea
+    QFileDialog, QMessageBox, QScrollArea, QComboBox
 )
 from functools import partial
 from PyQt6.QtCore import Qt
@@ -180,7 +180,7 @@ class ChatListApp(QMainWindow):
  
     def __init__(self):
         super().__init__()
-        self.db = db  # Инициализация БД
+        self.db = db
 
         self.setWindowTitle("ChatList — Сравнение AI-ответов")
         self.resize(1000, 700)
@@ -188,6 +188,7 @@ class ChatListApp(QMainWindow):
 
         # Хранение временных результатов: model_id → (response, checkbox)
         self.temp_results = {}
+        self.all_results_data = []  # ✅ Хранит все сохранённые результаты
 
         self.init_ui()
         # Добавляем кнопку в статус-бар
@@ -341,6 +342,34 @@ class ChatListApp(QMainWindow):
         self.results_table.cellDoubleClicked.connect(self.view_full_response)
         results_layout.addWidget(self.results_table)
 
+        # 🔍 Поиск в таблице результатов
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(QLabel("Поиск:"))
+        self.results_search = QLineEdit()
+        self.results_search.setPlaceholderText("Искать в промтах и ответах...")
+        self.results_search.textChanged.connect(self.filter_results_table)
+        search_layout.addWidget(self.results_search)
+
+        self.btn_clear_search = QPushButton("🗑️")
+        self.btn_clear_search.setFixedSize(30, 24)
+        self.btn_clear_search.setToolTip("Очистить поиск")
+        self.btn_clear_search.clicked.connect(self.clear_results_search)
+        search_layout.addWidget(self.btn_clear_search)
+
+        # ✅ Добавляем в results_layout, а не в общий layout!
+        results_layout.addLayout(search_layout)
+
+        # 🔽 Сортировка
+        sort_layout = QHBoxLayout()
+        sort_layout.addWidget(QLabel("Сортировка:"))
+        self.sort_combo = QComboBox()
+        self.sort_combo.addItems(["По умолчанию", "По дате (новые)", "По дате (старые)"])
+        self.sort_combo.currentIndexChanged.connect(self.filter_results_table)
+        sort_layout.addWidget(self.sort_combo)
+
+        # ✅ Только в results_layout!
+        results_layout.addLayout(sort_layout)
+
 
         # Кнопки управления
         action_layout = QHBoxLayout()
@@ -365,6 +394,64 @@ class ChatListApp(QMainWindow):
         action_layout.addWidget(self.export_html_btn)
 
         results_layout.addLayout(action_layout)
+
+    def filter_results_table(self):
+        """Фильтрация и сортировка таблицы результатов"""
+        query = self.results_search.text().strip().lower()
+        sort_mode = self.sort_combo.currentText()
+
+        data = self.all_results_data.copy()
+
+        # 🔍 Фильтр
+        if query:
+            filtered = []
+            for item in data:
+                if query in item["prompt"].lower():
+                    filtered.append(item)
+                    continue
+                for resp in item["responses"]:
+                    if query in resp["response"].lower():
+                        filtered.append(item)
+                        break
+            data = filtered
+
+        # 🔽 Сортировка
+        if sort_mode == "По дате (новые)":
+            data.sort(key=lambda x: x["saved_at"], reverse=True)
+        elif sort_mode == "По дате (старые)":
+            data.sort(key=lambda x: x["saved_at"], reverse=False)
+
+        # 🔄 Обновляем таблицу
+        self.results_table.setRowCount(0)
+        for item in data:
+            row_idx = self.results_table.rowCount()
+            self.results_table.insertRow(row_idx)
+
+            self.results_table.setItem(row_idx, 0, QTableWidgetItem(item["prompt"]))
+
+            # Собираем все ответы
+            responses_text = "\n\n".join([
+                f"🔹 {r['model']}\n{r['response']}"
+                for r in item["responses"]
+            ])
+
+            label = QLabel(responses_text)
+            label.setWordWrap(True)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+            scroll = QScrollArea()
+            scroll.setWidget(label)
+            scroll.setWidgetResizable(True)
+            scroll.setMaximumHeight(150)
+
+            self.results_table.setCellWidget(row_idx, 1, scroll)
+
+            self.results_table.setItem(row_idx, 2, QTableWidgetItem(item["saved_at"]))
+
+    def clear_results_search(self):
+        self.results_search.clear()
+        self.sort_combo.setCurrentIndex(0)
+
 
     def update_response_styles(self):
         theme = self.db.get_setting("theme", "light")
@@ -411,6 +498,25 @@ class ChatListApp(QMainWindow):
         saved_results = db.get_all_saved_results()
 
         if not saved_results:
+            # ✅ Группируем по prompt_id
+            from collections import defaultdict
+            grouped = defaultdict(lambda: {"prompt": "", "responses": [], "saved_at": ""})
+
+            for r in saved_results:
+                key = r["prompt_id"]
+                grouped[key]["prompt"] = r["prompt"]
+                grouped[key]["responses"].append({
+                    "model": r["model_name"],
+                    "response": r["response"],
+                    "model_id": r["model_id"]
+                })
+                grouped[key]["saved_at"] = r["saved_at"]
+
+            # ✅ Преобразуем в список и сохраняем
+            self.all_results_data = [
+                {"prompt": v["prompt"], "responses": v["responses"], "saved_at": v["saved_at"]}
+                for v in grouped.values()
+            ]
             QMessageBox.information(self, "Нет данных", "Нет сохранённых результатов.")
             return
 
@@ -458,7 +564,17 @@ class ChatListApp(QMainWindow):
             self.temp_results[row_idx] = (None, response, checkbox)
 
         # Подстраиваем высоту строк
-        QTimer.singleShot(50, self.resize_all_rows)
+        QTimer.singleShot(100, self.resize_all_rows)
+
+        prompt_text = self.prompt_input.toPlainText().strip()
+        self.all_results_data.append({
+            "prompt": prompt_text,
+            "responses": [
+                {"model": model.name, "response": response, "model_id": model.id}
+                for model in models
+            ],
+            "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
 
         # Обновляем статус
         self.statusBar().showMessage(f"Загружено {len(saved_results)} сохранённых ответов", 3000)
@@ -503,7 +619,7 @@ class ChatListApp(QMainWindow):
 
     def generate_html(self, responses: list, theme: str) -> str:
         """Генерирует HTML с встроенными стилями"""
-        # 🔹 Объявляем переменные
+        # Цвета в зависимости от темы
         if theme == "dark":
             bg = "#2b2b2b"
             text = "#ffffff"
@@ -517,8 +633,8 @@ class ChatListApp(QMainWindow):
             border = "#ddd"
             accent = "#0056b3"
 
-        # 🔹 Теперь безопасно создаём html
-        html = f'''<!DOCTYPE html>
+            # Начало HTML
+            html = f"""<!DOCTYPE html>
     <html lang="ru">
     <head>
         <meta charset="UTF-8">
@@ -573,37 +689,35 @@ class ChatListApp(QMainWindow):
             <h1>ChatList — Результаты</h1>
             <p><strong>Дата:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <hr class="divider">
-    '''
+    """
 
-        # Добавляем ответы
-        for model_name, response in responses:
-            response_escaped = (
-                response
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\n", "<br>")
-            )
-            html += f'''
+            # Добавляем ответы
+            for model_name, response in responses:
+                response_escaped = (
+                    response
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\n", "<br>")
+                )
+                html += f"""
             <h2>{model_name}</h2>
             <blockquote>
                 {response_escaped}
             </blockquote>
             <hr class="divider">
-    '''
+    """
 
-        # Завершение HTML
-        html += f'''
+            # Завершение HTML
+            html += f"""
             <div class="footer">
                 Экспорт сгенерирован ChatList • <a href="https://github.com/fedorkrs33-web/ChatList" style="color: {accent}; text-decoration: none;">GitHub</a>
             </div>
         </div>
     </body>
     </html>
-    '''
-
+    """
         return html
-
 
         
      #============= ВКЛАДКА 3: МОДЕЛИ =============
@@ -1224,6 +1338,23 @@ class ChatListApp(QMainWindow):
         # После цикла
         QTimer.singleShot(100, self.resize_all_rows)
 
+        # 🔥 Собираем данные из temp_results
+        responses_data = []
+        for row_idx, (model_id, response, checkbox) in self.temp_results.items():
+            model_name = self.results_table.item(row_idx, 0).text()
+            responses_data.append({
+                "model": model_name,
+                "response": response,
+                "model_id": model_id
+            })
+
+        # Добавляем в историю
+        self.all_results_data.append({
+            "prompt": prompt,
+            "responses": responses_data,
+            "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+
     def delete_prompt(self, prompt_id: int):
         """Удаляет промт и все его результаты"""
         reply = QMessageBox.question(
@@ -1263,7 +1394,19 @@ class ChatListApp(QMainWindow):
         if saved_count > 0:
             QMessageBox.information(self, "Готово", f"Сохранено {saved_count} ответов!")
         else:
-            QMessageBox.information(self, "Внимание", "Ничего не выбрано.")
+            QMessageBox.information(self, "Внимание", "Ничего не выбрано.")  
+        selected_responses = []
+        for row_idx, (model_id, response, checkbox) in self.temp_results.items():
+            model_name = self.results_table.item(row_idx, 0).text()
+            if checkbox.isChecked():
+                selected_responses.append({"model": model_name, "response": response, "model_id": model_id})
+
+        if selected_responses:
+            self.all_results_data.append({
+                "prompt": prompt_text,
+                "responses": selected_responses,
+                "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })           
     
     def export_to_markdown(self):
         """Экспортирует выбранные ответы в Markdown-файл"""

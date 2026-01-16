@@ -1,5 +1,6 @@
 # main.py
 import sys
+import markdown
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QTableWidget, QTableWidgetItem,
@@ -219,6 +220,7 @@ class ChatListApp(QMainWindow):
             self.db.set_setting("theme", "light")
         # 🔥 Обновляем стили внутри ячеек
         self.update_response_styles()
+        self.update_preview_on_theme_change()
 
     def load_theme(self):
         theme = self.db.get_setting("theme", "light")
@@ -233,6 +235,20 @@ class ChatListApp(QMainWindow):
         # 🔥 Обновляем стили при старте
         self.update_response_styles()
 
+    def update_preview_on_theme_change(self):
+        """Если вкладка 'Предпросмотр' активна — перезагружает текущий просмотр"""
+        # Проверяем, открыта ли вкладка "Предпросмотр Markdown"
+        current_tab_index = self.tab_widget.currentIndex()
+        if current_tab_index != 3:  # 🔢 Убедитесь, что это индекс вкладки "Предпросмотр"
+            return  # Не на той вкладке — выходим
+
+        # Проверяем, есть ли выбранная строка
+        selected_row = self.preview_table.currentRow()
+        if selected_row < 0:
+            return
+
+        # Перезапускаем предпросмотр (это вызовет перегенерацию HTML с новой темой)
+        self.load_preview(selected_row, 0)
 
     def init_ui(self):
         # Центральный виджет
@@ -242,6 +258,7 @@ class ChatListApp(QMainWindow):
 
         # ============= ВКЛАДКИ =============
         tabs = QTabWidget()
+        self.tab_widget = tabs
         self.tab_prompts = QWidget()
         self.tab_results = QWidget()
         tabs.addTab(self.tab_prompts, "Промты")
@@ -669,7 +686,7 @@ class ChatListApp(QMainWindow):
             self.preview_table.setItem(row_idx, 3, QTableWidgetItem(item["saved_at"]))
 
     def load_preview(self, row, column):
-        """Загружает и отображает Markdown-предпросмотр с отступами"""
+        """Загружает и отображает Markdown-предпросмотр с поддержкой форматирования"""
         result_id = int(self.preview_table.item(row, 0).text())
         prompt = self.preview_table.item(row, 1).text()
 
@@ -678,27 +695,141 @@ class ChatListApp(QMainWindow):
             self.preview_text.setHtml("<p><i>Нет данных</i></p>")
             return
 
-        # Формируем Markdown с пустыми строками для отступов
+        # Формируем Markdown
         md_lines = []
         md_lines.append(f"# {prompt.strip()}")
         md_lines.append(f"*Дата: {responses[0]['saved_at']}*")
-        md_lines.append("")  # Пустая строка — отступ
+        md_lines.append("")  # Пустая строка
 
         for r in responses:
             md_lines.append(f"## {r['model_name']}")
-            # Сохраняем переносы и пустые строки
             response_text = r['response'].strip()
-            # Разбиваем на строки и обрабатываем
+            # Экранируем, чтобы не сломать Markdown
             lines = response_text.splitlines()
             for line in lines:
                 if line.strip() == '':
-                    md_lines.append(">")  # Пустая строка в цитате
+                    md_lines.append("")  # Пустая строка
                 else:
                     md_lines.append(f"> {line}")
             md_lines.append("")  # Отступ между моделями
 
-        html = self.md_to_simple_html("\n".join(md_lines))
-        self.preview_text.setHtml(html)
+        # 🔥 Здесь определяем md_text
+        md_text = "\n".join(md_lines)
+
+        # Используем библиотеку markdown
+        import markdown
+        html = markdown.markdown(md_text, extensions=[
+            'fenced_code',
+            'tables',
+            'codehilite'  # ← подсветка синтаксиса
+        ])
+
+        # Добавляем стили и обёртку
+        theme = self.db.get_setting("theme", "light")
+        
+        if theme == "dark":
+            bg = "#2b2b2b"
+            text = "#ffffff"
+            code_bg = "#1e1e1e"
+            code_color = "#dcdcdc"
+            blockquote_bg = "#3c3c3c"
+            blockquote_border = "#007acc"
+            heading = "#00aaff"
+            link = "#64b5f6"
+        else:
+            bg = "#ffffff"
+            text = "#333333"
+            code_bg = "#f5f5f5"
+            code_color = "#000000"
+            blockquote_bg = "#f9f9f9"
+            blockquote_border = "#ccc"
+            heading = "#007acc"
+            link = "#1976d2"
+
+        styled_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body, html {{
+                    margin: 0;
+                    padding: 20px;
+                    background: {bg};
+                    color: {text};
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    line-height: 1.6;
+                    font-size: 14px;
+                }}
+                h1, h2, h3 {{
+                    color: {heading};
+                    border-bottom: 1px solid {blockquote_border};
+                    padding-bottom: 5px;
+                }}
+                a {{
+                    color: {link};
+                    text-decoration: none;
+                }}
+                a:hover {{
+                    text-decoration: underline;
+                }}
+                code {{
+                    font-family: 'Consolas', 'Courier New', monospace;
+                    background: {code_bg};
+                    color: {code_color};
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-size: 0.9em;
+                }}
+                pre {{
+                    background: {code_bg};
+                    color: {code_color};
+                    padding: 15px;
+                    border-radius: 6px;
+                    overflow: auto;
+                    margin: 10px 0;
+                    border: 1px solid {blockquote_border};
+                }}
+                pre code {{
+                    background: none;
+                    color: inherit;
+                    padding: 0;
+                    font-size: inherit;
+                }}
+                blockquote {{
+                    background: {blockquote_bg};
+                    border-left: 4px solid {blockquote_border};
+                    margin: 15px 0;
+                    padding: 12px 15px;
+                    font-style: italic;
+                    border-radius: 0 4px 4px 0;
+                }}
+                ul, ol {{
+                    margin: 10px 0;
+                    padding-left: 25px;
+                }}
+                table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 15px 0;
+                }}
+                table th, table td {{
+                    border: 1px solid {blockquote_border};
+                    padding: 8px;
+                    text-align: left;
+                }}
+                table th {{
+                    background: {blockquote_bg};
+                    color: {heading};
+                }}
+            </style>
+        </head>
+        <body>
+            {html}
+        </body>
+        </html>
+        """
+        self.preview_text.setHtml(styled_html)
 
     def escape_html(self, text: str) -> str:
         """Экранирует HTML-символы"""

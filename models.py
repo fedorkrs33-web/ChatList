@@ -84,3 +84,14 @@ class Model:
 
     def __repr__(self):
         return f"<Model id={self.id} name='{self.name}' active={self.is_active} provider='{self.provider}'>"
+
+    @classmethod
+    def get_by_name(cls, name: str):
+        """Получает модель по имени из БД"""
+        query = "SELECT * FROM models WHERE name = ?"
+        with db.get_connection() as conn:
+            conn.row_factory = db._dict_factory
+            row = conn.execute(query, (name,)).fetchone()
+            if row:
+                return cls(**row)
+        return None

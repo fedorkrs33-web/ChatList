@@ -1,14 +1,11 @@
 # main.py
 import sys
-import os
 import markdown
-import re
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QTableWidget, QTableWidgetItem,
     QCheckBox, QLabel, QLineEdit, QHeaderView, QTabWidget,
-    QFileDialog, QMessageBox, QScrollArea, QComboBox,
-    QInputDialog, QDialog
+    QFileDialog, QMessageBox, QScrollArea
 )
 from functools import partial
 from PyQt6.QtCore import Qt
@@ -17,8 +14,6 @@ from network import Network
 from db import db
 from datetime import datetime
 from PyQt6.QtCore import Qt, QTimer  # Добавьте QTimer
-from PyQt6.QtGui import QCursor, QGuiApplication, QIcon, QPixmap  # ✅ Добавлен QPixmap
-from PyQt6.QtCore import Qt
 
 # THEME_COLORS.py
 THEME_COLORS = {
@@ -169,16 +164,27 @@ QStatusBar {
 """
 
 
-class ChatListApp(QMainWindow): 
+class ChatListApp(QMainWindow):
+    def get_label_style(self):
+        """Возвращает CSS для QLabel в зависимости от текущей темы"""
+        theme = self.db.get_setting("theme", "light")
+        colors = THEME_COLORS.get(theme, THEME_COLORS["light"])
+        return f"""
+        QLabel {{
+            background: {colors['bg']};
+            color: {colors['text']};
+            padding: 8px;
+            border-radius: 4px;
+        }}
+        """
+ 
     def __init__(self):
         super().__init__()
         self.db = db  # Инициализация БД
 
         self.setWindowTitle("ChatList — Сравнение AI-ответов")
-        self.setWindowIcon(QIcon("app.ico"))
         self.resize(1000, 700)
         self.statusBar()  # Инициализирует statusBar
-        self.all_results_data = []  # Для хранения результатов (поиск, сортировка)
 
         # Хранение временных результатов: model_id → (response, checkbox)
         self.temp_results = {}
@@ -199,28 +205,6 @@ class ChatListApp(QMainWindow):
         self.load_prompts()
         self.load_models()
 
-    def load_logo(self):
-            """Если нужно использовать изображение в интерфейсе"""
-            self.logo_label = QLabel()
-            pixmap = QPixmap("logo.png")
-            if not pixmap.isNull():
-                self.logo_label.setPixmap(pixmap.scaled(100, 100))
-            else:
-                self.logo_label.setText("Логотип не найден")
-
-    def get_label_style(self):
-        """Возвращает CSS для QLabel в зависимости от текущей темы"""
-        theme = self.db.get_setting("theme", "light")
-        colors = THEME_COLORS.get(theme, THEME_COLORS["light"])
-        return f"""
-        QLabel {{
-            background: {colors['bg']};
-            color: {colors['text']};
-            padding: 8px;
-            border-radius: 4px;
-        }}
-        """
-    
     def toggle_theme(self):
         is_dark = self.theme_btn.isChecked()
         if is_dark:
@@ -232,7 +216,7 @@ class ChatListApp(QMainWindow):
         else:
             # Применяем только стиль кнопок (светлый)
             self.setStyleSheet(LIGHT_BUTTON_STYLE)
-            self.theme_btn.setText("🌙 Тёмная тема")
+            self.theme_btn.setText("🌙 Тёмкая тема")
             self.db.set_setting("theme", "light")
         # 🔥 Обновляем стили внутри ячеек
         self.update_response_styles()
@@ -247,13 +231,9 @@ class ChatListApp(QMainWindow):
         else:
             self.theme_btn.setChecked(False)
             self.setStyleSheet(LIGHT_BUTTON_STYLE)
-            self.theme_btn.setText("🌙 Тёмная тема")
+            self.theme_btn.setText("🌙 Тёмкая тема")
         # 🔥 Обновляем стили при старте
         self.update_response_styles()
-
-    def filter_results_table(self):
-        """Фильтрует и отображает результаты (временная заглушка)"""
-        pass  # Пока пусто — или реализуйте на основе all_results_data
 
     def update_preview_on_theme_change(self):
         """Если вкладка 'Предпросмотр' активна — перезагружает текущий просмотр"""
@@ -326,11 +306,7 @@ class ChatListApp(QMainWindow):
         prompts_layout.addWidget(self.prompt_input)
 
         # Кнопки
-        self.enhance_prompt_btn = QPushButton("✨ Улучшить промт")
-        self.enhance_prompt_btn.clicked.connect(self.enhance_prompt)
-
         btn_layout = QHBoxLayout()
-        btn_layout.addWidget(self.enhance_prompt_btn)
         self.send_btn = QPushButton("📤 Отправить во все активные модели")
         self.send_btn.clicked.connect(self.send_prompt)
         btn_layout.addWidget(self.send_btn)
@@ -389,307 +365,6 @@ class ChatListApp(QMainWindow):
         action_layout.addWidget(self.export_html_btn)
 
         results_layout.addLayout(action_layout)
-
-    def enhance_prompt(self):
-        """Запускает AI-ассистент для улучшения промта"""
-        original = self.prompt_input.toPlainText().strip()
-        if not original:
-            QMessageBox.warning(self, "Пусто", "Введите промт для улучшения.")
-            return
-
-        # Диалог выбора модели
-        model = self.select_model_for_enhancement()
-        if not model:
-            return
-
-        # Формируем системный промт
-        system_prompt = f"""
-    Пожалуйста, улучши следующий промт:
-
-    "{original}"
-
-    Твоя задача:
-    1. Сделай его чётким, конкретным, без двусмысленностей.
-    2. Предложи 3 альтернативные формулировки.
-    3. Адаптируй промт под:
-    - 🧠 Глубокий анализ
-    - 💻 Кодирование
-    - 🎨 Креативное мышление
-
-    Формат ответа:
-
-    УЛУЧШЕННЫЙ ПРОМТ:
-    [улучшенный текст]
-
-    ВАРИАНТЫ:
-    1. [вариант 1]
-    2. [вариант 2]
-    3. [вариант 3]
-
-    АДАПТАЦИЯ:
-    🔹 Анализ: [текст]
-    🔹 Код: [текст]
-    🔹 Креатив: [текст]
-    """
-
-        # Показываем "ожидание"
-        self.show_wait_cursor()
-        try:
-            enhanced = Network.send_prompt_to_model(model, system_prompt)
-            print("🔹 [DEBUG] Полный ответ от AI:")
-            print(enhanced)  # ← Выводим весь ответ
-        finally:
-            self.restore_cursor()
-
-        if not enhanced or not enhanced.strip():
-            QMessageBox.critical(self, "Ошибка", "Не удалось получить улучшенный промт.")
-            return
-
-        print("🔹 [DEBUG] Перед вызовом show_enhancement_result")  # ← Добавьте это
-        # Показываем результат
-        self.show_enhancement_result(original, enhanced)
-
-    def select_model_for_enhancement(self):
-        """Показывает диалог выбора модели для улучшения"""
-        models = Model.get_active()
-        if not models:
-            QMessageBox.warning(self, "Нет моделей", "Нет активных моделей.")
-            return None
-
-        items = [f"{m.name} ({m.provider})" for m in models]
-        item, ok = QInputDialog.getItem(self, "Выберите модель", "Для улучшения промта:", items, 0, False)
-        if not ok:
-            return None
-
-        selected_name = item.split(" (")[0]
-        return next((m for m in models if m.name == selected_name), None)
-
-    def show_enhancement_result(self, original: str, enhanced: str):
-        """Показывает улучшенный промт, варианты и адаптации — каждый в отдельном блоке с кнопкой 'Принять'"""
-        from PyQt6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
-            QPushButton, QFrame, QScrollArea, QWidget
-        )
-        from PyQt6.QtCore import Qt
-
-        # Парсим ответ
-        result = self.parse_enhancement_response(enhanced)
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("🧠 AI-ассистент: Улучшение промта")
-        dialog.resize(900, 600)
-
-        # Главный layout
-        main_layout = QVBoxLayout()
-
-        # Скролл-область
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-
-        def add_block(title: str, text: str):
-            """Добавляет один блок: заголовок, текст, кнопку 'Принять' — с поддержкой тёмной темы"""
-            if not text or not text.strip():
-                return
-
-            # Фрейм
-            frame = QFrame()
-            frame.setFrameShape(QFrame.Shape.Box)
-            frame.setStyleSheet("""
-                QFrame {
-                    margin: 4px;
-                    padding: 8px;
-                    border: 1px solid #555;
-                    border-radius: 6px;
-                    background: #2d2d2d;  /* Тёмный фон фрейма */
-                }
-            """)
-
-            layout = QHBoxLayout()
-
-            # Левая часть: заголовок + текст
-            left_layout = QVBoxLayout()
-
-            label = QLabel(title)
-            label.setStyleSheet("font-weight: bold; color: #ffffff; background: transparent;")
-            label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-            left_layout.addWidget(label)
-
-            text_edit = QTextEdit()
-            text_edit.setPlainText(text.strip())
-            text_edit.setReadOnly(True)
-            text_edit.setMaximumHeight(80)
-            text_edit.setStyleSheet("""
-                QTextEdit {
-                    background: #ffffff;        /* Светлый фон */
-                    color: #222222;             /* Тёмный текст */
-                    border: 1px solid #dddddd;  /* Лёгкая рамка */
-                    border-radius: 4px;
-                    padding: 4px;
-                    font-size: 12px;
-                }
-            """)
-            left_layout.addWidget(text_edit)
-
-            layout.addLayout(left_layout)
-
-            # Кнопка "Принять"
-            accept_btn = QPushButton("✅ Принять")
-            accept_btn.setFixedWidth(100)
-            accept_btn.setStyleSheet("""
-                QPushButton {
-                    background: #007acc;
-                    color: white;
-                    border: none;
-                    padding: 6px 10px;
-                    border-radius: 4px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background: #005a9e;
-                }
-                QPushButton:pressed {
-                    background: #004578;
-                }
-            """)
-            accept_btn.clicked.connect(lambda: self.prompt_input.setPlainText(text.strip()))
-            layout.addWidget(accept_btn)
-
-            frame.setLayout(layout)
-            scroll_layout.addWidget(frame)
-
-
-        # === Добавляем блоки ===
-
-        # 1. Улучшенный промт
-        add_block("🎯 Улучшенный промт", result["enhanced"])
-
-        # 2. Каждый вариант — отдельно
-        for i, variant in enumerate(result["variants"], 1):
-            add_block(f"🔄 Вариант {i}", variant)
-
-        # 3. Адаптации
-        adapted = result["adapted"]
-        if "Анализ" in adapted:
-            add_block("🔹 Адаптация: Анализ", adapted["Анализ"])
-        if "Код" in adapted:
-            add_block("💻 Адаптация: Код", adapted["Код"])
-        if "Креатив" in adapted:
-            add_block("🎨 Адаптация: Креатив", adapted["Креатив"])
-
-        # ===
-
-        scroll.setWidget(scroll_content)
-        main_layout.addWidget(scroll)
-
-        # Кнопка "Закрыть" — внизу
-        close_btn = QPushButton("❌ Закрыть")
-        close_btn.clicked.connect(dialog.reject)
-        main_layout.addWidget(close_btn)
-
-        dialog.setLayout(main_layout)
-        dialog.exec()
-
-    def parse_enhancement_response(self, text: str):
-        """Разбирает ответ от AI — устойчиво к markdown, форматированию"""
-        text = text.strip()
-        result = {
-            "enhanced": "",
-            "variants": [],
-            "adapted": {}
-        }
-
-        # Удаляем markdown-заголовки, если есть
-        text = re.sub(r"^##\s*", "", text, flags=re.MULTILINE)
-
-        lines = text.splitlines()
-        current = ""
-
-        for line in lines:
-            line = line.strip()
-
-            # Улучшенный промт
-            if re.search(r"УЛУЧШЕННЫЙ ПРОМТ", line, re.IGNORECASE):
-                current = "enhanced"
-                continue
-
-            # Варианты
-            if re.search(r"ВАРИАНТЫ", line, re.IGNORECASE):
-                current = "variants"
-                continue
-
-            # Адаптация
-            if re.search(r"АДАПТАЦИЯ", line, re.IGNORECASE):
-                current = "adapted"
-                continue
-
-            # Обработка контента
-            if current == "enhanced" and line and not re.search(r"(ВАРИАНТЫ|АДАПТАЦИЯ)", line, re.IGNORECASE):
-                result["enhanced"] += line + "\n"
-
-            elif current == "variants" and re.match(r"\d+\.", line):
-                variant_text = re.sub(r"^\d+\.\s*", "", line)
-                result["variants"].append(variant_text)
-
-            elif current == "adapted" and "🔹" in line:
-                # Убираем **, __ и лишние символы
-                line = re.sub(r"[*_]{2}", "", line)
-                if ":" in line:
-                    k, v = line.split(":", 1)
-                    clean_key = k.strip("🔹 ").strip()
-                    clean_value = v.strip()  # ✅ Сначала создаём переменную
-                    if "анализ" in clean_key.lower():
-                        result["adapted"]["Анализ"] = clean_value
-                        print(f"[PARSER] Анализ: тип={type(clean_value)}, значение={repr(clean_value)}")
-                    elif "код" in clean_key.lower():
-                        result["adapted"]["Код"] = clean_value
-                        print(f"[PARSER] Код: тип={type(clean_value)}, значение={repr(clean_value)}")
-                    elif "креатив" in clean_key.lower():
-                        result["adapted"]["Креатив"] = clean_value
-                        print(f"[PARSER] Креатив: тип={type(clean_value)}, значение={repr(clean_value)}")
-
-            # Продолжение предыдущего блока (если нет ключа, но в режиме adapted)
-            elif current == "adapted" and result["adapted"] and line:
-                last_key = list(result["adapted"].keys())[-1]
-                result["adapted"][last_key] += "\n" + line
-
-        result["enhanced"] = result["enhanced"].strip()
-        print("🔍 Доступные адаптации:", list(result["adapted"].keys()))
-        return result
-
-    def use_variant_from_list(self, variants: list, callback):
-        """Показывает список вариантов для выбора"""
-        items = [f"{i+1}. {v[:100]}..." if len(v) > 100 else f"{i+1}. {v}" for i, v in enumerate(variants)]
-        item, ok = QInputDialog.getItem(
-            self,
-            "Выберите вариант",
-            "Использовать:",
-            items,
-            0,
-            False
-        )
-        if ok and item:
-            # Извлекаем текст (убираем номер)
-            selected_text = variants[items.index(item)]
-            callback(selected_text)
-
-    def extract_enhanced(self, text: str) -> str:
-        """Извлекает текст после 'УЛУЧШЕННЫЙ ПРОМТ:'"""
-        lines = text.splitlines()
-        for i, line in enumerate(lines):
-            if "УЛУЧШЕННЫЙ ПРОМТ:" in line:
-                return "\n".join(lines[i+1:]).strip().split("ВАРИАНТЫ:")[0].strip()
-        return text.strip()
-    
-    def show_wait_cursor(self):
-        """Показывает курсор ожидания"""
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-
-    def restore_cursor(self):
-        """Восстанавливает курсор"""
-        QApplication.restoreOverrideCursor()
-
 
     def update_response_styles(self):
         theme = self.db.get_setting("theme", "light")

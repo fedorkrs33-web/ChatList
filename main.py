@@ -285,6 +285,7 @@ class ChatListApp(QMainWindow):
         tabs.addTab(self.tab_results, "Результаты")
         tabs.addTab(self.create_models_tab(), "Модели")
         tabs.addTab(self.create_preview_tab(), "Предпросмотр Markdown")
+        tabs.addTab(self.create_help_tab(), "Справка")
 
         layout.addWidget(tabs)
 
@@ -1680,6 +1681,70 @@ class ChatListApp(QMainWindow):
                     msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                     msg_box.setIcon(QMessageBox.Icon.Information)
                     msg_box.exec()
+
+    def create_help_tab(self):
+        """Создаёт вкладку 'Справка'"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Заголовок
+        title = QLabel("ChatList")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #007acc; margin: 10px 0;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        # Версия
+        version = QLabel("Версия 1.0")
+        version.setStyleSheet("font-size: 14px; color: #666; margin-bottom: 20px;")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version)
+
+        # Описание
+        description = QLabel(
+            "ChatList — это приложение для сравнения ответов различных AI-моделей.\n"
+            "Вы можете:\n"
+            "• Писать промты и отправлять их в несколько моделей одновременно\n"
+            "• Сравнивать ответы\n"
+            "• Сохранять результаты\n"
+            "• Экспортировать в Markdown и HTML\n"
+            "• Улучшать промты с помощью AI-ассистента"
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet("font-size: 14px; margin: 10px 0; color: #555;")
+        description.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(description)
+
+        # Логотип (если есть app.ico или logo.png)
+        if os.path.exists("app.ico") or os.path.exists("logo.png"):
+            icon_path = "app.ico" if os.path.exists("app.ico") else "logo.png"
+            try:
+                logo = QLabel()
+                pixmap = QPixmap(icon_path)
+                if not pixmap.isNull():
+                    logo.setPixmap(pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio))
+                    logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    layout.addWidget(logo)
+            except:
+                pass  # Если не удалось загрузить — пропустим
+
+        # Ссылка на GitHub
+        link = QLabel('<a href="https://github.com/fedorkrs33-web/ChatList" style="color: #007acc; text-decoration: none;">GitHub</a>')
+        link.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        link.setOpenExternalLinks(True)
+        layout.addWidget(link)
+
+        # Информация о лицензии
+        license_label = QLabel("Лицензия: MIT")
+        license_label.setStyleSheet("font-size: 12px; color: #999; margin-top: 30px;")
+        license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(license_label)
+
+        # Растяжка
+        layout.addStretch()
+
+        return tab
+                
 
 # ============= ЗАПУСК ПРИЛОЖЕНИЯ =============
 if __name__ == "__main__":

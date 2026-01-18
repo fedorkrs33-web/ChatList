@@ -7,7 +7,6 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from typing import Dict, Any, Optional
 from config import Config
-from models import Model
 
 
 class NetworkError(Exception):
@@ -22,7 +21,7 @@ class NetworkError(Exception):
 
 class Network:
     @staticmethod
-    def send_prompt_to_model(model: Model, prompt: str) -> str:
+    def send_prompt_to_model(model_data: dict, prompt: str) -> str:
         """
         Отправляет промт в указанную модель и возвращает ответ или сообщение об ошибке.
 
@@ -30,17 +29,17 @@ class Network:
         :param prompt: текст промта
         :return: строка — ответ или ошибка
         """
-        print(f"📤 Отправляю промт в {model.name}...")
+        print(f"📤 Отправляю промт в {model_data.name}...")
 
         try:
             # 🔹 GigaChat — особый случай
-            if model.provider == "gigachat":
+            if model_data.provider == "gigachat":
                 return Network._send_to_gigachat(prompt)
-            elif model.provider == "yandex":
+            elif model_data.provider == "yandex":
                 return Network._send_to_yandex(prompt)
             else:
                 # 🔹 OpenAI-совместимые: GPT, Claude, DeepSeek, Groq и др.
-                return Network._send_openai_compatible(model, prompt)
+                return Network._send_openai_compatible(model_data, prompt)
 
         except Exception as e:
             error_msg = f"❌ Критическая ошибка: {str(e)}"
@@ -48,7 +47,7 @@ class Network:
             return error_msg
 
     @staticmethod
-    def _send_openai_compatible(model: Model, prompt: str) -> str:
+    def _send_openai_compatible(model: dict, prompt: str) -> str:
         """Отправка в OpenAI-совместимые API с полной поддержкой БД"""
         try:
             # 🔑 Получаем API-ключ по имени переменной из БД

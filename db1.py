@@ -1,6 +1,7 @@
 # db.py
 import sqlite3
 import os
+import sqlite3
 from datetime import datetime
 from typing import List, Tuple, Optional
 
@@ -49,18 +50,18 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 """
 
-# Начальные данные для моделей
+# Начальные данные для моделей (можно расширить)
 INITIAL_MODELS = [
-    ("1", "DeepSeek", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "deepseek-v3.2"),
-    ("2", "Anthropic", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "claude-3-haiku"),
-    ("3", "GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
-    ("4", "Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
-    ("5", "OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "openrouter/avto"),
+    ("DeepSeek", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "deepseek-v3.2"),
+    ("Anthropic", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "claude-3-haiku"),
+    ("GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
+    ("Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
+    ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "openrouter/avto"),
 ]
 
 
 class Database:
-    def __init__(self, db_path=DB_PATH):
+    def __init__(self, db_path="chatlist.db"):
         self.db_path = db_path
         self.conn = None
         self.init_db()
@@ -69,38 +70,38 @@ class Database:
     def _dict_factory(cursor, row):
         """Превращает sqlite3.Row в словарь"""
         return dict(zip([col[0] for col in cursor.description], row))
+    
+    def get_connection(self):
+        """Создаёт соединение с БД"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = self._dict_factory
+        return conn
 
     def init_db(self):
         """Инициализирует БД: создаёт таблицы и добавляет начальные данные"""
-        try:
-            # Создаём соединение
-            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-            self.conn.row_factory = sqlite3.Row  # чтобы можно было обращаться по имени
-            print(f"[DB] Подключено к {self.db_path}")
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row
+        self.init_default_models()  # ✅ Добавить сюда
+        print(f"[DB] Подключено к {self.db_path}")
 
-            # Создаём все таблицы
-            self._create_tables()
+        with self.get_connection() as conn:
+            # Создаём таблицы
+            conn.execute(CREATE_PROMPTS_TABLE)
+            conn.execute(CREATE_MODELS_TABLE)
+            conn.execute(CREATE_RESULTS_TABLE)
+            conn.execute(CREATE_SETTINGS_TABLE)
+            conn.commit()
 
-            # Добавляем стандартные модели, если таблица пуста
-            self.init_default_models()
+            # Подсчёт моделей
+            conn.row_factory = None
+            cursor = conn.execute("SELECT COUNT(*) FROM models")
+            count = cursor.fetchone()[0]
+            conn.row_factory = self._dict_factory  # Возвращаем dict
 
-        except Exception as e:
-            print(f"[DB] Ошибка инициализации БД: {e}")
-            raise
-
-    def _create_tables(self):
-        """Создаёт таблицы, если не существуют"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(CREATE_PROMPTS_TABLE)
-            cursor.execute(CREATE_MODELS_TABLE)
-            cursor.execute(CREATE_RESULTS_TABLE)
-            cursor.execute(CREATE_SETTINGS_TABLE)
-            self.conn.commit() 
-            print("[DB] Таблицы проверены/созданы")
-        except Exception as e:
-            print(f"[DB] Ошибка создания таблиц: {e}")
-            raise
+            if count == 0:
+               INITIAL_MODELS 
+    
+    # db.py
 
     def init_default_models(self):
         """Добавляет стандартные модели, если таблица пуста"""
@@ -110,10 +111,18 @@ class Database:
             count = cursor.fetchone()[0]
 
             if count == 0:
+                default_models = [
+                    ("1", "DeepSeek", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "deepseek-v3.2"),
+                    ("2", "Anthropic", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "claude-3-haiku"),
+                    ("3", "GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
+                    ("4", "Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
+                    ("5", "OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "openrouter/avto"),
+                ]
+
                 cursor.executemany("""
                     INSERT INTO models (id, name, api_url, api_key_var, is_active, provider, model_name)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, INITIAL_MODELS)
+                """, default_models)
 
                 self.conn.commit()
                 print("[DB] Добавлены стандартные модели")
@@ -125,65 +134,49 @@ class Database:
 
     def get_model_by_id(self, model_id):
         """Полная модель — с api_key — только для отправки запроса"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                SELECT id, name, api_url, api_key_var, is_active, provider, model_name
-                FROM models WHERE id = ?
-            """, (model_id,))
-            row = cursor.fetchone()
-            if row:
-                return {
-                    "id": row[0],
-                    "name": row[1],
-                    "api_url": row[2],
-                    "api_key_var": row[3],
-                    "is_active": row[4],
-                    "provider": row[5],
-                    "model_name": row[6]
-                }
-            return None
-        except Exception as e:
-            print(f"[DB] Ошибка поиска модели: {e}")
-            return None
-
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, name, api_url, api_key_var, is_active, provider, model_name
+            FROM models WHERE id = ?
+        """, (model_id,))
+        row = cursor.fetchone()
+        if row:
+            return {
+                "id": row[0], 
+                "name": row[1],
+                "api_url": row[2],
+                "api_key_var": row[3],
+                "is_active": row[4],
+                "provider": row[5],
+                "model_name": row[6]
+            }
+        return None
+  
     # === Методы для prompts ===
     def save_prompt(self, prompt: str, tags: str = "") -> int:
         """Сохраняет промт и возвращает его ID"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(
+        with self.get_connection() as conn:
+            cursor = conn.execute(
                 "INSERT INTO prompts (created_at, prompt, tags) VALUES (?, ?, ?)",
                 (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), prompt, tags)
             )
-            self.conn.commit()
+            conn.commit()
             return cursor.lastrowid
-        except Exception as e:
-            print(f"[DB] Ошибка сохранения промта: {e}")
-            return -1
 
     def get_all_prompts(self) -> List[Tuple]:
         """Возвращает все промты (id, created_at, prompt, tags)"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute("SELECT id, created_at, prompt, tags FROM prompts ORDER BY created_at DESC")
+        with self.get_connection() as conn:
+            cursor = conn.execute("SELECT id, created_at, prompt, tags FROM prompts ORDER BY created_at DESC")
             return cursor.fetchall()
-        except Exception as e:
-            print(f"[DB] Ошибка загрузки промтов: {e}")
-            return []
 
     def search_prompts(self, query: str) -> List[Tuple]:
         """Поиск промтов по тексту или тегам"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(
+        with self.get_connection() as conn:
+            cursor = conn.execute(
                 "SELECT id, created_at, prompt, tags FROM prompts WHERE prompt LIKE ? OR tags LIKE ? ORDER BY created_at DESC",
                 (f"%{query}%", f"%{query}%")
             )
             return cursor.fetchall()
-        except Exception as e:
-            print(f"[DB] Ошибка поиска промтов: {e}")
-            return []
 
     # === Методы для results ===
     def get_all_saved_results(self):
@@ -200,66 +193,19 @@ class Database:
             ORDER BY r.saved_at DESC
         """
         try:
-            cursor = self.conn.cursor()
-            cursor.execute(query)
-            return cursor.fetchall()
+            with self.get_connection() as conn:
+                cursor = conn.execute(query)
+                return cursor.fetchall()
         except Exception as e:
             print(f"[DB] Ошибка при загрузке результатов: {e}")
-            return []
-
-    def get_saved_results_with_models(self):
-        """Возвращает список сохранённых результатов с промтами и моделями"""
-        query = """
-        SELECT 
-            r.id,
-            p.prompt,
-            GROUP_CONCAT(m.name, ', ') as models,
-            r.saved_at
-        FROM results r
-        JOIN prompts p ON r.prompt_id = p.id
-        JOIN models m ON r.model_id = m.id
-        GROUP BY r.id, p.prompt, r.saved_at
-        ORDER BY r.saved_at DESC
-        """
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(query)
-            return cursor.fetchall()
-        except Exception as e:
-            print(f"[DB] Ошибка: {e}")
-            return []
-
-    def get_responses_by_result_id(self, result_id: int):
-        """Получает все ответы для одного сохранённого результата"""
-        query = """
-        SELECT 
-            r.response,
-            m.name as model_name,
-            r.saved_at
-        FROM results r
-        JOIN models m ON r.model_id = m.id
-        WHERE r.id = ?
-        ORDER BY m.name
-        """
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(query, (result_id,))
-            return cursor.fetchall()
-        except Exception as e:
-            print(f"[DB] Ошибка: {e}")
             return []
 
     # === Методы для models ===
     def get_active_models(self):
         query = "SELECT * FROM models WHERE is_active = 1 ORDER BY id"
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(query)
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
-        except Exception as e:
-            print(f"[DB] Ошибка: {e}")
-            return []
+        with self.get_connection() as conn:
+            conn.row_factory = self._dict_factory
+            return conn.execute(query).fetchall()
 
     def get_all_models(self):
         """Возвращает все модели из таблицы models"""
@@ -268,54 +214,57 @@ class Database:
             cursor.execute("""
                 SELECT id, name, api_url, api_key_var, is_active, provider, model_name
                 FROM models
-                ORDER BY id
+                ORDER BY name
             """)
             rows = cursor.fetchall()
-            return [dict(row) for row in rows]
+            return [
+                {
+                    "id": r[0],
+                    "name": r[1],
+                    "api_url": r[2],
+                    "api_key_var": r[3],
+                    "is_active": r[4],
+                    "provider": r[5],
+                    "model_name": r[6]
+                }
+                for r in rows
+            ]
         except Exception as e:
             print(f"[DB] Ошибка загрузки моделей: {e}")
             return []
 
     def update_model_status(self, model_id: int, is_active: bool):
         """Включает/выключает модель"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(
+        with self.get_connection() as conn:
+            conn.execute(
                 "UPDATE models SET is_active = ? WHERE id = ?",
                 (1 if is_active else 0, model_id)
             )
-            self.conn.commit()
-        except Exception as e:
-            print(f"[DB] Ошибка обновления статуса модели: {e}")
+            conn.commit()
 
     def delete_prompt(self, prompt_id: int):
         """Удаляет промт и все связанные результаты"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute("DELETE FROM results WHERE prompt_id = ?", (prompt_id,))
-            cursor.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
-            self.conn.commit()
-        except Exception as e:
-            print(f"[DB] Ошибка удаления промта: {e}")
+        with self.get_connection() as conn:
+            # Удаляем сначала результаты (из-за внешнего ключа)
+            conn.execute("DELETE FROM results WHERE prompt_id = ?", (prompt_id,))
+            # Затем промт
+            conn.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
+            conn.commit()
 
     # === Методы для results ===
     def save_result(self, prompt_id: int, model_id: int, response: str):
         """Сохраняет результат"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(
+        with self.get_connection() as conn:
+            conn.execute(
                 "INSERT INTO results (prompt_id, model_id, response, saved_at) VALUES (?, ?, ?, ?)",
                 (prompt_id, model_id, response, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             )
-            self.conn.commit()
-        except Exception as e:
-            print(f"[DB] Ошибка сохранения результата: {e}")
+            conn.commit()
 
     def get_results_by_prompt(self, prompt_id: int) -> List[Tuple]:
         """Получает все сохранённые результаты для промта"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(
+        with self.get_connection() as conn:
+            cursor = conn.execute(
                 """SELECT m.name, r.response, r.saved_at 
                    FROM results r
                    JOIN models m ON r.model_id = m.id
@@ -324,11 +273,9 @@ class Database:
                 (prompt_id,)
             )
             return cursor.fetchall()
-        except Exception as e:
-            print(f"[DB] Ошибка: {e}")
-            return []
 
     # === Методы для settings ===
+
     def get_setting(self, key: str, default: str = None) -> str:
         """Получает настройку по ключу"""
         try:
@@ -351,3 +298,38 @@ class Database:
             self.conn.commit()
         except Exception as e:
             print(f"[DB] Ошибка сохранения настройки: {e}")
+
+    def get_saved_results_with_models(self):
+        """Возвращает список сохранённых результатов с промтами и моделями"""
+        query = """
+        SELECT 
+            r.id,
+            p.prompt,
+            GROUP_CONCAT(m.name, ', ') as models,
+            r.saved_at
+        FROM results r
+        JOIN prompts p ON r.prompt_id = p.id
+        JOIN models m ON r.model_id = m.id
+        GROUP BY r.id, p.prompt, r.saved_at
+        ORDER BY r.saved_at DESC
+        """
+        with self.get_connection() as conn:
+            conn.row_factory = self._dict_factory
+            return conn.execute(query).fetchall()
+
+    def get_responses_by_result_id(self, result_id: int):
+        """Получает все ответы для одного сохранённого результата"""
+        query = """
+        SELECT 
+            r.response,
+            m.name as model_name,
+            r.saved_at
+        FROM results r
+        JOIN models m ON r.model_id = m.id
+        WHERE r.id = ?
+        ORDER BY m.name
+        """
+        with self.get_connection() as conn:
+            conn.row_factory = self._dict_factory
+            return conn.execute(query, (result_id,)).fetchall()
+

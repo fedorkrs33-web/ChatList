@@ -8,196 +8,54 @@ from PyQt6.QtWidgets import (
     QPushButton, QTextEdit, QTableWidget, QTableWidgetItem,
     QCheckBox, QLabel, QLineEdit, QHeaderView, QTabWidget,
     QFileDialog, QMessageBox, QScrollArea, QComboBox,
-    QInputDialog, QDialog
+    QInputDialog, QDialog, QSpinBox
 )
+from db1 import Database
+from themes import apply_theme, get_font
 from functools import partial
 from PyQt6.QtCore import Qt
-from models import Model
 from network import Network
-from db import db
 from datetime import datetime
 from PyQt6.QtCore import Qt, QTimer  # Добавьте QTimer
 from PyQt6.QtGui import QCursor, QGuiApplication, QIcon, QPixmap  # ✅ Добавлен QPixmap
 from PyQt6.QtCore import Qt
+from models import ModelsManager
 
-# THEME_COLORS.py
-THEME_COLORS = {
-    "light": {
-        "bg": "#f9f9f9",
-        "text": "#333333",
-        "border": "#ddd"
-    },
-    "dark": {
-        "bg": "#3c3c3c",
-        "text": "#ffffff",
-        "border": "#555"
-    }
-}
-
-LIGHT_BUTTON_STYLE = """
-QPushButton {
-    background-color: #ffffff;
-    color: #333333;
-    border: 1px solid #cccccc;
-    border-radius: 4px;
-    padding: 2px 4px;
-    min-height: 24px;
-    min-width: 82px;
-    text-align: center;
-    font-family: Arial;
-    font-size: 12px;
-}
-
-QPushButton:hover {
-    background-color: #f8f8f8;
-    border: 1px solid #bbbbbb;
-}
-
-QPushButton:pressed {
-    background-color: #e0e0e0;
-    border: 1px solid #999999;
-}
-"""
-
-
-COMMON_BUTTON_STYLE_DARK = """
-QPushButton {
-    padding: 2px 3px;
-    border: 1px solid #555;
-    border-radius: 4px;
-    min-height: 22px;
-    min-width: 84px;
-    text-align: center;
-    font-family: Arial;
-    font-size: 12px;
-    background-color: #4a4a4a;
-    color: white;
-}
-
-QPushButton:hover {
-    background-color: #5a5a5a;
-}
-
-QPushButton:pressed {
-    background-color: #6a6a6a;
-}
-"""
-
-DARK_THEME = """
-QWidget {
-    background-color: #2b2b2b;
-    color: #ffffff;
-    font-family: Arial;
-}
-
-/* Заголовки таблиц */
-QHeaderView::section {
-    background-color: #3c3c3c;
-    color: #ffffff;
-    padding: 4px;
-    border: 1px solid #555;
-    font-weight: bold;
-}
-
-/* Таблица результатов */
-QTableWidget {
-    background-color: #3c3c3c;
-    alternate-background-color: #333333;
-    border: 1px solid #555;
-    gridline-color: #555;
-    color: #ffffff;
-}
-
-/* Ячейки таблицы */
-QTableWidget::item {
-    background-color: #3c3c3c;
-    color: #ffffff;
-    padding: 6px;
-}
-
-/* Выделенная ячейка */
-QTableWidget::item:selected {
-    background-color: #5a5a5a;
-    color: #ffffff;
-}
-
-/* Вкладки */
-QTabWidget::pane {
-    border: 1px solid #3c3c3c;
-}
-
-QTabBar::tab {
-    background: #3c3c3c;
-    color: #ffffff;
-    padding: 8px 12px;
-    margin: 2px;
-    border-radius: 4px;
-}
-
-QTabBar::tab:selected {
-    background: #4a4a4a;
-    font-weight: bold;
-}
-
-/* Поля ввода, списки */
-QListWidget, QTextEdit, QLineEdit, QComboBox {
-    background-color: #3c3c3c;
-    border: 1px solid #555;
-    color: #ffffff;
-    padding: 4px;
-}
-
-QPushButton {
-    background-color: #4a4a4a;
-    color: white;
-    border: 1px solid #555;
-    padding: 2px 3px;
-    border-radius: 4px;
-    min-height: 22px;
-    min-width: 84px;
-    text-align: center;
-}
-
-QPushButton:hover {
-    background-color: #5a5a5a;
-}
-
-QStatusBar {
-    background-color: #333;
-    color: #ccc;
-}
-"""
-
+# Импорт версии
+try:
+    from version import __version__
+except ImportError:
+    __version__ = "dev"  # fallback, если нет файла
 
 class ChatListApp(QMainWindow): 
     def __init__(self):
         super().__init__()
-        self.db = db  # Инициализация БД
+        self.db = Database()
+        # Загружаем настройки
+        theme = self.db.get_setting("theme", "light")
+        font_size = int(self.db.get_setting("font_size", 12))
 
-        self.setWindowTitle("ChatList — Сравнение AI-ответов")
+        apply_theme(self, theme)  # ✅ Вызов функции из themes.py
+        self.apply_font_size(font_size)
+
+        # Применяем
+        apply_theme(self, theme)           # ← Из themes.py
+        self.apply_font_size(font_size)
+        
+        self.setWindowTitle(f"ChatList — Сравнение AI-ответов (v{__version__})")
         self.setWindowIcon(QIcon("app.ico"))
         self.resize(1000, 700)
         self.statusBar()  # Инициализирует statusBar
         self.all_results_data = []  # Для хранения результатов (поиск, сортировка)
 
-        # Хранение временных результатов: model_id → (response, checkbox)
-        self.temp_results = {}
-
         self.init_ui()
-        # Добавляем кнопку в статус-бар
-        self.theme_btn = QPushButton("🌙 Тёмная тема")
-        self.theme_btn.setCheckable(True)
-        self.theme_btn.clicked.connect(self.toggle_theme)
-
-        # Добавляем в статус-бар
-        self.statusBar().addPermanentWidget(self.theme_btn)
-
-        # Загружаем сохранённую тему
-        self.load_theme()
 
         # Загружаем промты и модели
         self.load_prompts()
         self.load_models()
+
+        # Хранение временных результатов: model_id → (response, checkbox)
+        self.temp_results = {}
 
     def load_logo(self):
             """Если нужно использовать изображение в интерфейсе"""
@@ -208,48 +66,10 @@ class ChatListApp(QMainWindow):
             else:
                 self.logo_label.setText("Логотип не найден")
 
-    def get_label_style(self):
-        """Возвращает CSS для QLabel в зависимости от текущей темы"""
-        theme = self.db.get_setting("theme", "light")
-        colors = THEME_COLORS.get(theme, THEME_COLORS["light"])
-        return f"""
-        QLabel {{
-            background: {colors['bg']};
-            color: {colors['text']};
-            padding: 8px;
-            border-radius: 4px;
-        }}
-        """
-    
-    def toggle_theme(self):
-        is_dark = self.theme_btn.isChecked()
-        if is_dark:
-            # Применяем тёмный фон + тёмные кнопки
-            full_style = DARK_THEME + COMMON_BUTTON_STYLE_DARK
-            self.setStyleSheet(full_style)
-            self.theme_btn.setText("☀ Светлая тема")
-            self.db.set_setting("theme", "dark")
-        else:
-            # Применяем только стиль кнопок (светлый)
-            self.setStyleSheet(LIGHT_BUTTON_STYLE)
-            self.theme_btn.setText("🌙 Тёмная тема")
-            self.db.set_setting("theme", "light")
-        # 🔥 Обновляем стили внутри ячеек
-        self.update_response_styles()
-        self.update_preview_on_theme_change()
-
     def load_theme(self):
+        """Загружает тему из БД и применяет"""
         theme = self.db.get_setting("theme", "light")
-        if theme == "dark":
-            self.theme_btn.setChecked(True)
-            self.setStyleSheet(DARK_THEME)
-            self.theme_btn.setText("☀ Светлая тема")
-        else:
-            self.theme_btn.setChecked(False)
-            self.setStyleSheet(LIGHT_BUTTON_STYLE)
-            self.theme_btn.setText("🌙 Тёмная тема")
-        # 🔥 Обновляем стили при старте
-        self.update_response_styles()
+        self.apply_theme(theme)
 
     def filter_results_table(self):
         """Фильтрует и отображает результаты (временная заглушка)"""
@@ -285,6 +105,7 @@ class ChatListApp(QMainWindow):
         tabs.addTab(self.tab_results, "Результаты")
         tabs.addTab(self.create_models_tab(), "Модели")
         tabs.addTab(self.create_preview_tab(), "Предпросмотр Markdown")
+        tabs.addTab(self.create_settings_tab(), "Настройки")
         tabs.addTab(self.create_help_tab(), "Справка")
 
         layout.addWidget(tabs)
@@ -898,6 +719,7 @@ class ChatListApp(QMainWindow):
         <div class="container">
             <h1>ChatList — Результаты</h1>
             <p><strong>Дата:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p><strong>Версия:</strong> {__version__}</p>
             <hr class="divider">
     '''
 
@@ -933,6 +755,7 @@ class ChatListApp(QMainWindow):
 
         
      #============= ВКЛАДКА 3: МОДЕЛИ =============
+
     def create_models_tab(self):
         """Создаёт вкладку 'Модели'"""
         models_layout = QVBoxLayout()
@@ -940,26 +763,41 @@ class ChatListApp(QMainWindow):
         self.tab_models.setLayout(models_layout)
         # Таблица моделей
         self.models_table = QTableWidget()
+        self.models_table.setSortingEnabled(True)  # ✅ сортировка
         self.models_table.setColumnCount(7)
-        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "API URL", "Внутреннее имя", "Провайдер", "Активна", "Управление"])
+        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "API URL", "Модель", "Провайдер", "Активна", "Управление"])
         header = self.models_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Имя
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # API URL
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Внутреннее имя
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Модель 
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Провайдер
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)             # Активна
         self.models_table.setColumnWidth(5, 60)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)             # Управление
-        self.models_table.setColumnWidth(6, 110)                                  
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Управление                                  
         models_layout.addWidget(self.models_table)
 
-        # Кнопка обновления
-        refresh_btn = QPushButton("🔄 Обновить список")
-        refresh_btn.clicked.connect(self.load_models)
-        models_layout.addWidget(refresh_btn)
+        # Кнопки
+        btn_layout = QHBoxLayout()
+
+        # Кнопка "Редактировать"
+        self.edit_models_btn = QPushButton("✒ Редактировать")
+        self.edit_models_btn.clicked.connect(self.open_models_editor)
+        btn_layout.addWidget(self.edit_models_btn)
+        
+        btn_layout.addStretch()
+        models_layout.addLayout(btn_layout)
 
         return self.tab_models
+    
+    def open_models_editor(self):
+        """Открывает редактор моделей"""
+        from models import ModelsManager
+        editor = ModelsManager(db=self.db, parent=self)  # ✅ Передаём self.db
+        editor.open_editor()
+
+
+
     #============= ВКЛАДКА 4: Предпросмотр Markdown =============
     def create_preview_tab(self):
         """Создаёт вкладку 'Предпросмотр Markdown'"""
@@ -1239,75 +1077,30 @@ class ChatListApp(QMainWindow):
         return ''.join(html_lines)
 
     def load_models(self):
-        """Загружает модели из БД в таблицу"""
-        self.models_table.setRowCount(0)
-        models = Model.load_all()  # Все модели
+        """Загружает все модели из БД через self.db"""
+        try:
+            models = self.db.get_all_models()  # ✅ Должен быть в db.py
+            self.models_table.setRowCount(0)
+            for model in models:
+                row = self.models_table.rowCount()
+                self.models_table.insertRow(row)
+                self.models_table.setItem(row, 0, QTableWidgetItem(str(model["id"])))
+                self.models_table.setItem(row, 1, QTableWidgetItem(model["name"]))
+                self.models_table.setItem(row, 2, QTableWidgetItem(model["api_url"]))
+                self.models_table.setItem(row, 3, QTableWidgetItem(model["model_name"]))
+                self.models_table.setItem(row, 4, QTableWidgetItem(model["provider"]))
 
-        for row_idx, model in enumerate(models):
-            self.models_table.insertRow(row_idx)
-            self.models_table.setRowHeight(row_idx, 45)
+                active_text = "Да" if model["is_active"] else "Нет"
+                active_item = QTableWidgetItem(active_text)
+                active_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.models_table.setItem(row, 5, active_item)
 
-            # ID
-            self.models_table.setItem(row_idx, 0, QTableWidgetItem(str(model.id)))
-            # Имя
-            # Колонка 1: Имя — редактируемое
-            name_edit = QLineEdit(model.name)
-            name_edit.setPlaceholderText("Имя модели")
-            name_edit.editingFinished.connect(
-                lambda m=model, le=name_edit: self.update_model_field(m.id, "name", le.text())
-            )
-            self.models_table.setCellWidget(row_idx, 1, name_edit)
+                # Управление — заглушка
+                self.models_table.setItem(row, 6, QTableWidgetItem("..."))
 
-            # Колонка 2: API URL — редактируемое
-            url_edit = QLineEdit(model.api_url or "")
-            url_edit.setPlaceholderText("https://...")
-            url_edit.editingFinished.connect(
-                lambda m=model, le=url_edit: self.update_model_field(m.id, "api_url", le.text())
-            )
-            self.models_table.setCellWidget(row_idx, 2, url_edit)
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить модели из БД:\n{e}")
 
-            # Колонка 3: Внутреннее имя — редактируемое
-            model_name_edit = QLineEdit(model.model_name or "")
-            model_name_edit.setPlaceholderText("gpt-4, claude-3-haiku и т.п.")
-            model_name_edit.editingFinished.connect(
-                lambda m=model, le=model_name_edit: self.update_model_field(m.id, "model_name", le.text())
-            )
-            self.models_table.setCellWidget(row_idx, 3, model_name_edit)
-
-            # Колонка 4: Провайдер — можно тоже редактировать (опционально)
-            provider_edit = QLineEdit(model.provider or "")
-            provider_edit.setPlaceholderText("openai, anthropic...")
-            provider_edit.editingFinished.connect(
-                lambda m=model, le=provider_edit: self.update_model_field(m.id, "provider", le.text())
-            )
-            self.models_table.setCellWidget(row_idx, 4, provider_edit)
-
-            # Чекбокс "Активна"
-            active_checkbox = QCheckBox()
-            active_checkbox.setChecked(model.is_active)
-            active_cell = QWidget()
-            active_layout = QHBoxLayout(active_cell)
-            active_layout.addWidget(active_checkbox)
-            active_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            active_layout.setContentsMargins(0, 0, 0, 0)
-            active_cell.setLayout(active_layout)
-            self.models_table.setCellWidget(row_idx, 5, active_cell)
-
-            # Кнопка "Обновить статус"
-            update_btn = QPushButton("✅ Сохранить")
-            update_btn.setMinimumHeight(30)
-            update_btn.setMinimumWidth(100)
-            update_btn.setStyleSheet("")  # Убедитесь, что не переопределяется где-то
-            update_btn.clicked.connect(
-                lambda _, mid=model.id, cb=active_checkbox: self.update_model_status(mid, cb)
-            )
-            btn_cell = QWidget()
-            btn_layout = QHBoxLayout(btn_cell)
-            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            btn_layout.setContentsMargins(0, 0, 0, 0) # Отступы
-            btn_cell.setLayout(btn_layout)
-            btn_layout.addWidget(update_btn)
-            self.models_table.setCellWidget(row_idx, 6, btn_cell)
 
     def update_model_field(self, model_id: int, field: str, value: str):
         """Обновляет поле модели в БД"""
@@ -1340,7 +1133,7 @@ class ChatListApp(QMainWindow):
     def load_prompts(self):
         """Загружает все промты в таблицу"""
         self.prompts_table.setRowCount(0)
-        prompts = db.get_all_prompts()
+        prompts = self.db.get_all_prompts()
 
         for row_idx, p in enumerate(prompts):
             self.prompts_table.insertRow(row_idx)
@@ -1461,7 +1254,7 @@ class ChatListApp(QMainWindow):
         self.clear_results()
 
         # Получаем активные модели
-        models = Model.get_active()
+        models = model_data.get_active_models()
         if not models:
             QMessageBox.warning(self, "Ошибка", "Нет активных моделей. Проверьте настройки.")
             return
@@ -1682,6 +1475,68 @@ class ChatListApp(QMainWindow):
                     msg_box.setIcon(QMessageBox.Icon.Information)
                     msg_box.exec()
 
+    def create_settings_tab(self):
+        """Создаёт вкладку 'Настройки'"""
+        tab = QWidget()
+        layout = QVBoxLayout()
+
+        # Заголовок
+        title = QLabel("Настройки приложения")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        layout.addWidget(title)
+
+        # Таблица настроек
+        self.settings_table = QTableWidget()
+        self.settings_table.setColumnCount(2)
+        self.settings_table.setRowCount(2)
+        self.settings_table.setHorizontalHeaderLabels(["Параметр", "Значение"])
+        self.settings_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.settings_table.verticalHeader().setVisible(False)
+        self.settings_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)  # Только через виджеты
+
+        # 1. Тема
+        theme_label = QTableWidgetItem("Тема")
+        theme_label.setFlags(theme_label.flags() ^ Qt.ItemFlag.ItemIsEditable)
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["light", "dark"])
+        self.theme_combo.setCurrentText(self.db.get_setting("theme", "light"))
+        self.theme_combo.currentTextChanged.connect(self.on_theme_changed)
+
+        self.settings_table.setItem(0, 0, theme_label)
+        self.settings_table.setCellWidget(0, 1, self.theme_combo)
+
+        # 2. Размер шрифта
+        font_label = QTableWidgetItem("Размер шрифта")
+        font_label.setFlags(font_label.flags() ^ Qt.ItemFlag.ItemIsEditable)
+        self.font_spin = QSpinBox()
+        self.font_spin.setRange(10, 20)
+        self.font_spin.setValue(int(self.db.get_setting("font_size", 12)))
+        self.font_spin.valueChanged.connect(self.on_font_size_changed)
+
+        self.settings_table.setItem(1, 0, font_label)
+        self.settings_table.setCellWidget(1, 1, self.font_spin)
+
+        layout.addWidget(self.settings_table)
+        layout.addStretch()
+        tab.setLayout(layout)
+        return tab
+    
+    def on_theme_changed(self, theme: str):
+        """Смена темы"""
+        self.db.set_setting("theme", theme)
+        apply_theme(self, theme)
+
+    def on_font_size_changed(self, size: int):
+        """Изменение размера шрифта"""
+        self.db.set_setting("font_size", str(size))
+        self.apply_font_size(size)
+
+    def apply_font_size(self, size: int):
+        """Применяет шрифт ко всему приложению"""
+        font = get_font(size)
+        self.setFont(font)
+        # Опционально: обновить шрифт у отдельных виджетов, если не наследуют
+
     def create_help_tab(self):
         """Создаёт вкладку 'Справка'"""
         tab = QWidget()
@@ -1694,7 +1549,7 @@ class ChatListApp(QMainWindow):
         layout.addWidget(title)
 
         # Версия
-        version = QLabel("Версия 1.0")
+        version = QLabel(f"Версия {__version__}")
         version.setStyleSheet("font-size: 14px; color: #666; margin-bottom: 20px;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version)

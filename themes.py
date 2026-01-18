@@ -131,3 +131,16 @@ def apply_theme(widget, theme_name: str):
     """
     style = STYLES.get(theme_name, STYLES["light"])
     widget.setStyleSheet(style)
+
+def get_label_style() -> str:  # ✅ Без self
+    """Возвращает CSS-стиль для метки с ответом модели"""
+    return """
+        QLabel {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 10px;
+            color: #000;
+            font-size: 12px;
+        }
+    """

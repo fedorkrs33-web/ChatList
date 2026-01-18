@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QInputDialog, QDialog, QSpinBox
 )
 from db1 import Database
-from themes import apply_theme, get_font
+from themes import apply_theme, get_font, get_label_style
 from functools import partial
 from PyQt6.QtCore import Qt
 from network import Network
@@ -33,6 +33,10 @@ class ChatListApp(QMainWindow):
         self.db = Database()
         # Загружаем настройки
         theme = self.db.get_setting("theme", "light")
+        
+        import themes
+        self.themes = themes
+
         font_size = int(self.db.get_setting("font_size", 12))
 
         apply_theme(self, theme)  # ✅ Вызов функции из themes.py
@@ -272,19 +276,22 @@ class ChatListApp(QMainWindow):
         self.show_enhancement_result(original, enhanced)
 
     def select_model_for_enhancement(self):
-        """Показывает диалог выбора модели для улучшения"""
-        models = Model.get_active()
-        if not models:
-            QMessageBox.warning(self, "Нет моделей", "Нет активных моделей.")
+        try:
+            models = self.db.get_active_models()  # ✅ Через self.db
+            if not models:
+                QMessageBox.warning(self, "Нет моделей", "Нет активных моделей для улучшения промта.")
+                return None
+
+            items = [model["name"] for model in models]
+            item, ok = QInputDialog.getItem(self, "Выбор модели", "Выберите модель для улучшения промта:", items, 0, False)
+            if ok and item:
+                selected_model = next(m for m in models if m["name"] == item)
+                return selected_model
+            return None
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось выбрать модель:\n{e}")
             return None
 
-        items = [f"{m.name} ({m.provider})" for m in models]
-        item, ok = QInputDialog.getItem(self, "Выберите модель", "Для улучшения промта:", items, 0, False)
-        if not ok:
-            return None
-
-        selected_name = item.split(" (")[0]
-        return next((m for m in models if m.name == selected_name), None)
 
     def show_enhancement_result(self, original: str, enhanced: str):
         """Показывает улучшенный промт, варианты и адаптации — каждый в отдельном блоке с кнопкой 'Принять'"""
@@ -547,7 +554,7 @@ class ChatListApp(QMainWindow):
                 """)
                 label = scroll_area.widget()
                 if isinstance(label, QLabel):
-                    label.setStyleSheet(self.get_label_style())
+                    label.setStyleSheet(get_label_style())
 
     def load_saved_results(self):
         """Загружает сохранённые результаты из БД в таблицу"""
@@ -580,7 +587,7 @@ class ChatListApp(QMainWindow):
             label.setWordWrap(True)
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            label.setStyleSheet(self.get_label_style())
+            label.setStyleSheet(get_label_style())
 
             scroll = QScrollArea()
             scroll.setWidget(label)
@@ -1245,17 +1252,17 @@ class ChatListApp(QMainWindow):
         """Отправляет промт во все активные модели"""
         prompt = self.prompt_input.toPlainText().strip()
         if not prompt:
-            QMessageBox.warning(self, "Ошибка", "Введите промт!")
+            QMessageBox.warning(self, "Внимание", "Введите промт!")
             return
 
         # Сохраняем промт в БД
-        prompt_id = db.save_prompt(prompt)
+        prompt_id = self.db.save_prompt(prompt)
 
         # Очищаем предыдущие результаты
         self.clear_results()
 
         # Получаем активные модели
-        models = model_data.get_active_models()
+        models = self.db.get_active_models()
         if not models:
             QMessageBox.warning(self, "Ошибка", "Нет активных моделей. Проверьте настройки.")
             return
@@ -1267,16 +1274,16 @@ class ChatListApp(QMainWindow):
         for row_idx, model in enumerate(models):
             response = Network.send_prompt_to_model(model, prompt)
 
-            print(f"[DEBUG] {model.name}: response={repr(response[:100] if response else None)}")
+            print(f"[DEBUG] {model["name"]}: response={repr(response[:100] if response else None)}")
 
             # Нормализуем ответ
             if not response or not response.strip():
-                response = f"[Ошибка] Пустой ответ от {model.name}"
+                response = f"[Ошибка] Пустой ответ от {model["name"]}"
             else:
                 response = response.strip()
 
             # Устанавливаем имя модели
-            item = QTableWidgetItem(model.name)
+            item = QTableWidgetItem(model["name"])
             item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             self.results_table.setItem(row_idx, 0, item)
             # Создаём QLabel
@@ -1284,7 +1291,7 @@ class ChatListApp(QMainWindow):
             label.setWordWrap(True)
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            label.setStyleSheet(self.get_label_style())
+            label.setStyleSheet(get_label_style())
             
             # Создаём QScrollArea
             scroll = QScrollArea()
@@ -1339,7 +1346,7 @@ class ChatListApp(QMainWindow):
             checkbox_widget.setLayout(layout)
             self.results_table.setCellWidget(row_idx, 2, checkbox_widget)
 
-            self.temp_results[row_idx] = (model.id, response, checkbox)
+            self.temp_results[row_idx] = (model["id"], response, checkbox)
 
         # После цикла
         QTimer.singleShot(100, self.resize_all_rows)

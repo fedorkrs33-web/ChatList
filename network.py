@@ -29,13 +29,13 @@ class Network:
         :param prompt: текст промта
         :return: строка — ответ или ошибка
         """
-        print(f"📤 Отправляю промт в {model_data.name}...")
+        print(f"📤 Отправляю промт в {model_data['name']}...")
 
         try:
             # 🔹 GigaChat — особый случай
-            if model_data.provider == "gigachat":
+            if model_data["provider"] == "gigachat":
                 return Network._send_to_gigachat(prompt)
-            elif model_data.provider == "yandex":
+            elif model_data["provider"] == "yandex":
                 return Network._send_to_yandex(prompt)
             else:
                 # 🔹 OpenAI-совместимые: GPT, Claude, DeepSeek, Groq и др.
@@ -52,9 +52,9 @@ class Network:
         try:
             # 🔑 Получаем API-ключ по имени переменной из БД
             try:
-                api_key = Config.get_api_key(model.api_key_var)
+                api_key = Config.get_api_key(model["api_key_var"])
                 if not api_key:
-                    error_msg = f"🔑 Ключ не найден: {model.api_key_var}"
+                    error_msg = f"🔑 Ключ не найден: {model["api_key_var"]}"
                     print(error_msg)
                     return error_msg
             except ValueError as e:
@@ -63,7 +63,7 @@ class Network:
                 return error_msg
 
             # 🧩 Берём имя модели из БД (важно!)
-            model_name = (model.model_name or "").strip()
+            model_name = (model["model_name"] or "").strip()
             if not model_name:
                 error_msg = "⚠️ Не указано имя модели в БД"
                 print(error_msg)
@@ -84,9 +84,9 @@ class Network:
             }
 
             # 🌐 Отправляем
-            print(f"   🌐 POST {model.api_url} [model: {model_name}]")
+            print(f"   🌐 POST {model["api_key_var"]} [model: {model_name}]")
             response = requests.post(
-                model.api_url,
+                model["api_url"],
                 headers=headers,
                 json=payload,
                 timeout=30,

@@ -761,6 +761,7 @@ class ChatListApp(QMainWindow):
         models_layout = QVBoxLayout()
         self.tab_models = QWidget()
         self.tab_models.setLayout(models_layout)
+        
         # Таблица моделей
         self.models_table = QTableWidget()
         self.models_table.setSortingEnabled(True)  # ✅ сортировка

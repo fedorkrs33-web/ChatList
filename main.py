@@ -31,20 +31,16 @@ class ChatListApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = Database()
+
         # Загружаем настройки
         theme = self.db.get_setting("theme", "light")
+        font_size = int(self.db.get_setting("font_size", "12"))  # ✅ Превращаем в число  # Дефолт: 12
         
         import themes
         self.themes = themes
 
-        font_size = int(self.db.get_setting("font_size", 12))
-
-        apply_theme(self, theme)  # ✅ Вызов функции из themes.py
-        self.apply_font_size(font_size)
-
         # Применяем
         apply_theme(self, theme)           # ← Из themes.py
-        self.apply_font_size(font_size)
         
         self.setWindowTitle(f"ChatList — Сравнение AI-ответов (v{__version__})")
         self.setWindowIcon(QIcon("app.ico"))
@@ -53,6 +49,7 @@ class ChatListApp(QMainWindow):
         self.all_results_data = []  # Для хранения результатов (поиск, сортировка)
 
         self.init_ui()
+        self.apply_font_size(font_size)
 
         # Загружаем промты и модели
         self.load_prompts()
@@ -74,6 +71,15 @@ class ChatListApp(QMainWindow):
         """Загружает тему из БД и применяет"""
         theme = self.db.get_setting("theme", "light")
         self.apply_theme(theme)
+
+    def apply_font_size(self, size: int):
+        """Применяет размер шрифта ко всему интерфейсу"""
+        font = self.font()
+        font.setPointSize(size)
+        self.setFont(font)
+
+        for widget in self.findChildren(QWidget):
+            widget.setFont(font)
 
     def filter_results_table(self):
         """Фильтрует и отображает результаты (временная заглушка)"""
@@ -1517,7 +1523,7 @@ class ChatListApp(QMainWindow):
         font_label = QTableWidgetItem("Размер шрифта")
         font_label.setFlags(font_label.flags() ^ Qt.ItemFlag.ItemIsEditable)
         self.font_spin = QSpinBox()
-        self.font_spin.setRange(10, 20)
+        self.font_spin.setRange(8, 20)
         self.font_spin.setValue(int(self.db.get_setting("font_size", 12)))
         self.font_spin.valueChanged.connect(self.on_font_size_changed)
 
@@ -1543,7 +1549,9 @@ class ChatListApp(QMainWindow):
         """Применяет шрифт ко всему приложению"""
         font = get_font(size)
         self.setFont(font)
-        # Опционально: обновить шрифт у отдельных виджетов, если не наследуют
+        
+        for widget in self.findChildren(QWidget):
+            widget.setFont(font)
 
     def create_help_tab(self):
         """Создаёт вкладку 'Справка'"""

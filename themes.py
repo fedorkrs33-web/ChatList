@@ -116,10 +116,12 @@ def get_font(size: int) -> QFont:
     return font
 
 def apply_font_size(self, size: int):
-    """Применяет шрифт ко всему приложению"""
-    font = get_font(size)
+    print(f"🔧 Применяю размер шрифта: {size}")  # ← Отладка
+    font = QFont("Arial", size)
     self.setFont(font)
-    # Опционально: обновить шрифт у отдельных виджетов, если не наследуют
+
+    for widget in self.findChildren(QWidget):
+        widget.setFont(font)
 
 # 🎯 Применить тему
 def apply_theme(widget, theme_name: str):

@@ -58,15 +58,6 @@ class ChatListApp(QMainWindow):
         # Хранение временных результатов: model_id → (response, checkbox)
         self.temp_results = {}
 
-    def load_logo(self):
-            """Если нужно использовать изображение в интерфейсе"""
-            self.logo_label = QLabel()
-            pixmap = QPixmap("logo.png")
-            if not pixmap.isNull():
-                self.logo_label.setPixmap(pixmap.scaled(100, 100))
-            else:
-                self.logo_label.setText("Логотип не найден")
-
     def load_theme(self):
         """Загружает тему из БД и применяет"""
         theme = self.db.get_setting("theme", "light")
@@ -80,6 +71,46 @@ class ChatListApp(QMainWindow):
 
         for widget in self.findChildren(QWidget):
             widget.setFont(font)
+
+    # main.py
+
+    def load_prompts(self):
+        """Загружает промпты из БД и отображает в таблице"""
+        prompts = self.db.get_all_prompts()  # ✅ db.py возвращает список
+        self.prompts_table.setRowCount(0)
+        self.prompts_table.setColumnCount(4)
+        self.prompts_table.setHorizontalHeaderLabels(["ID", "Дата", "Текст", "Действия"])
+
+        for row_idx, prompt in enumerate(prompts):
+            self.prompts_table.insertRow(row_idx)
+
+            # ID
+            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(prompt["id"])))
+
+            # Дата
+            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(prompt["created_at"]))
+
+            # Текст (обрезанный)
+            text = prompt["prompt"] or ""
+            display_text = text[:50] + "..." if len(text) > 50 else text
+            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(display_text))
+
+            # Действия: кнопки
+            btn_layout = QHBoxLayout()
+            edit_btn = QPushButton("Редактировать")
+            delete_btn = QPushButton("Удалить")
+            btn_layout.addWidget(edit_btn)
+            btn_layout.addWidget(delete_btn)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+
+            btn_widget = QWidget()
+            btn_widget.setLayout(btn_layout)
+            self.prompts_table.setCellWidget(row_idx, 3, btn_widget)
+
+            # Привязка действий
+            edit_btn.clicked.connect(lambda checked, p=prompt: self.edit_prompt(p))
+            delete_btn.clicked.connect(lambda checked, p=prompt: self.delete_prompt(p))
+
 
     def filter_results_table(self):
         """Фильтрует и отображает результаты (временная заглушка)"""
@@ -108,9 +139,11 @@ class ChatListApp(QMainWindow):
 
         # ============= ВКЛАДКИ =============
         tabs = QTabWidget()
+
         self.tab_widget = tabs
         self.tab_prompts = QWidget()
         self.tab_results = QWidget()
+
         tabs.addTab(self.tab_prompts, "Промты")
         tabs.addTab(self.tab_results, "Результаты")
         tabs.addTab(self.create_models_tab(), "Модели")
@@ -221,6 +254,26 @@ class ChatListApp(QMainWindow):
         action_layout.addWidget(self.export_html_btn)
 
         results_layout.addLayout(action_layout)
+
+        # ============= ВКЛАДКА 3: МОДЕЛИ =============
+        self.models_tab = QWidget()
+        self.models_layout = QVBoxLayout(self.models_tab)
+
+        # Таблица
+        self.models_table = QTableWidget()
+        self.models_table.setColumnCount(6)
+        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "Провайдер", "API URL", "Активна", "Действия"])
+        self.models_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.models_layout.addWidget(self.models_table)
+
+
+    def on_search(self, text):
+        """Фильтрация чатов по введённому тексту"""
+        # Например:
+        for row in range(self.chats_table.rowCount()):
+            item = self.chats_table.item(row, 1)  # Название чата
+            hidden = text.lower() not in item.text().lower() if item else True
+            self.chats_table.setRowHidden(row, hidden)
 
     def enhance_prompt(self):
         """Запускает AI-ассистент для улучшения промта"""
@@ -771,15 +824,16 @@ class ChatListApp(QMainWindow):
 
     def create_models_tab(self):
         """Создаёт вкладку 'Модели'"""
-        models_layout = QVBoxLayout()
-        self.tab_models = QWidget()
-        self.tab_models.setLayout(models_layout)
+        self.models_tab = QWidget()
+        layout = QVBoxLayout(self.models_tab)
+
         
         # Таблица моделей
         self.models_table = QTableWidget()
         self.models_table.setSortingEnabled(True)  # ✅ сортировка
-        self.models_table.setColumnCount(7)
-        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "API URL", "Модель", "Провайдер", "Активна", "Управление"])
+        self.models_table.setColumnCount(6)
+        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "API URL", "Модель", "Провайдер", "Активна"])
+        
         header = self.models_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Имя
@@ -788,10 +842,15 @@ class ChatListApp(QMainWindow):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Провайдер
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)             # Активна
         self.models_table.setColumnWidth(5, 60)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Управление                                  
-        models_layout.addWidget(self.models_table)
 
-        # Кнопки
+        self.models_table.verticalHeader().setVisible(False)
+        self.models_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.models_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.models_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+
+        layout.addWidget(self.models_table)
+
+        # Кнопки под таблицей
         btn_layout = QHBoxLayout()
 
         # Кнопка "Редактировать"
@@ -800,16 +859,62 @@ class ChatListApp(QMainWindow):
         btn_layout.addWidget(self.edit_models_btn)
         
         btn_layout.addStretch()
-        models_layout.addLayout(btn_layout)
+        layout.addLayout(btn_layout)
 
-        return self.tab_models
+        return self.models_tab
     
     def open_models_editor(self):
-        """Открывает редактор моделей"""
         from models import ModelsManager
-        editor = ModelsManager(db=self.db, parent=self)  # ✅ Передаём self.db
-        editor.open_editor()
+        manager = ModelsManager(db=self.db, parent=self)
+        manager.open_editor()
+        self.load_models()  # Обновить после закрытия
 
+
+
+    def load_models(self):
+        """Загружает модели в таблицу"""
+        models = self.db.get_all_models()
+        self.models_table.setRowCount(0)
+
+        for row_idx, model in enumerate(models):
+            self.models_table.insertRow(row_idx)
+
+            # ID
+            self.models_table.setItem(row_idx, 0, QTableWidgetItem(str(model["id"])))
+            # Имя
+            self.models_table.setItem(row_idx, 1, QTableWidgetItem(model["name"]))
+            # API URL (сокращённо)
+            api_url = model.get("api_url", "") or ""
+            display_url = api_url if len(api_url) < 50 else api_url[:47] + "..."
+            self.models_table.setItem(row_idx, 2, QTableWidgetItem(display_url))
+            # Модель
+            self.models_table.setItem(row_idx, 3, QTableWidgetItem(model.get("model_name", "")))
+            # Провайдер
+            self.models_table.setItem(row_idx, 4, QTableWidgetItem(model.get("provider", "")))
+
+            # Активна — чекбокс
+            active_cb = QCheckBox()
+            active_cb.setChecked(bool(model["is_active"]))
+            active_cb.stateChanged.connect(
+                lambda state, mid=model["id"]: self.db.update_model_status(mid, bool(state))
+            )
+            
+            cb_widget = QWidget()
+            cb_layout = QHBoxLayout(cb_widget)
+            cb_layout.addWidget(active_cb)
+            cb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            cb_layout.setContentsMargins(0, 0, 0, 0)
+            cb_widget.setLayout(cb_layout)
+            self.models_table.setCellWidget(row_idx, 5, cb_widget)
+
+        # Сортировка по ID
+        self.models_table.sortItems(0)
+
+    def save_model_active_status(self, model_id: int, checkbox: QCheckBox):
+        """Сохраняет статус активности модели"""
+        is_active = checkbox.isChecked()
+        self.db.update_model_status(model_id, is_active)
+        QMessageBox.information(self, "Сохранено", "Статус активности обновлён")    
 
 
     #============= ВКЛАДКА 4: Предпросмотр Markdown =============
@@ -1090,157 +1195,6 @@ class ChatListApp(QMainWindow):
         # Объединяем всё
         return ''.join(html_lines)
 
-    def load_models(self):
-        """Загружает все модели из БД через self.db"""
-        try:
-            models = self.db.get_all_models()  # ✅ Должен быть в db.py
-            self.models_table.setRowCount(0)
-            for model in models:
-                row = self.models_table.rowCount()
-                self.models_table.insertRow(row)
-                self.models_table.setItem(row, 0, QTableWidgetItem(str(model["id"])))
-                self.models_table.setItem(row, 1, QTableWidgetItem(model["name"]))
-                self.models_table.setItem(row, 2, QTableWidgetItem(model["api_url"]))
-                self.models_table.setItem(row, 3, QTableWidgetItem(model["model_name"]))
-                self.models_table.setItem(row, 4, QTableWidgetItem(model["provider"]))
-
-                active_text = "Да" if model["is_active"] else "Нет"
-                active_item = QTableWidgetItem(active_text)
-                active_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.models_table.setItem(row, 5, active_item)
-
-                # Управление — заглушка
-                self.models_table.setItem(row, 6, QTableWidgetItem("..."))
-
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить модели из БД:\n{e}")
-
-
-    def update_model_field(self, model_id: int, field: str, value: str):
-        """Обновляет поле модели в БД"""
-        try:
-            # Обновляем в БД
-            Model.update_field(model_id, field, value)
-            # Обновляем статус
-            self.statusBar().showMessage(f"✅ Поле '{field}' модели обновлено", 3000)
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить поле:\n{str(e)}")
-
-
-    def on_model_status_changed(self, model_id: int, state: int):
-        """Вызывается при изменении состояния чекбокса модели"""
-        # Метод для отслеживания изменений (можно расширить логикой при необходимости)
-        # state: 0 = Unchecked, 2 = Checked (Qt.CheckState)
-        pass
-
-    def update_model_status(self, model_id: int, checkbox: QCheckBox):
-        """Обновляет статус модели в БД"""
-        is_active = checkbox.isChecked()
-        try:
-            Model.update_status(model_id, is_active)
-            status_text = "активна" if is_active else "неактивна"
-            self.statusBar().showMessage(f"Модель обновлена: статус '{status_text}'", 3000)
-            QMessageBox.information(self, "Готово", f"Статус модели изменён на '{status_text}'")
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить статус модели:\n{str(e)}")
-
-    def load_prompts(self):
-        """Загружает все промты в таблицу"""
-        self.prompts_table.setRowCount(0)
-        prompts = self.db.get_all_prompts()
-
-        for row_idx, p in enumerate(prompts):
-            self.prompts_table.insertRow(row_idx)
-
-            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(p["id"])))
-            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(p["created_at"]))
-            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
-            self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
-
-            self.prompts_table.setRowHeight(row_idx, 45)
-
-            # Контейнер для кнопок
-            btn_widget = QWidget()
-            btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(2, 0, 0, 2)
-            btn_layout.setSpacing(3)
-            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            # Создаём кнопки
-            copy_btn = QPushButton("📋 Копировать")
-            copy_btn.setFixedSize(90, 30)
-
-            delete_btn = QPushButton("🗑️ Удалить")
-            delete_btn.setFixedSize(90, 30)
-            delete_btn.setStyleSheet("QPushButton { color: #a00; }")
-
-            # Сохраняем ссылки на кнопки внутри виджета, чтобы Python не удалил
-            btn_widget.copy_btn = copy_btn
-            btn_widget.delete_btn = delete_btn
-
-            # Подключаем сигналы
-            from functools import partial
-            copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
-            delete_btn.clicked.connect(partial(self.delete_prompt, p["id"]))
-
-            # Добавляем в макет
-            btn_layout.addWidget(copy_btn)
-            btn_layout.addWidget(delete_btn)
-            btn_widget.setLayout(btn_layout)
-
-            # Устанавливаем в таблицу
-            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
-
-
-    def on_search(self):
-        """Поиск в промтах"""
-        query = self.search_input.text().strip()
-        if not query:
-            self.load_prompts()
-            return
-
-        self.prompts_table.setRowCount(0)
-        results = db.search_prompts(query)
-        for row_idx, p in enumerate(results):
-            self.prompts_table.insertRow(row_idx)
-            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(p["id"])))
-            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(p["created_at"]))
-            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
-            self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
-
-            # Контейнер для кнопок
-            btn_widget = QWidget()
-            btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(4, 2, 4, 2)
-            btn_layout.setSpacing(6)
-            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            # Создаём кнопки
-            copy_btn = QPushButton("📋 Копировать")
-            copy_btn.setFixedSize(90, 26)
-
-            delete_btn = QPushButton("🗑️ Удалить")
-            delete_btn.setFixedSize(90, 26)
-            delete_btn.setStyleSheet("QPushButton { color: #a00; }")
-
-            # Сохраняем ссылки на кнопки внутри виджета, чтобы Python не удалил
-            btn_widget.copy_btn = copy_btn
-            btn_widget.delete_btn = delete_btn
-
-            # Подключаем сигналы
-            from functools import partial
-            copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
-            delete_btn.clicked.connect(partial(self.delete_prompt, p["id"]))
-
-            # Добавляем в макет
-            btn_layout.addWidget(copy_btn)
-            btn_layout.addWidget(delete_btn)
-            btn_widget.setLayout(btn_layout)
-
-            # Устанавливаем в таблицу
-            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
-
-
     def copy_prompt_to_input(self, text):
         """Копирует переданный текст промта в поле ввода"""
         self.prompt_input.setPlainText(text)
@@ -1385,7 +1339,7 @@ class ChatListApp(QMainWindow):
             return
 
         # Сохраняем промт (если ещё не сохранён)
-        prompt_id = db.save_prompt(prompt_text)
+        prompt_id = self.db.save_prompt(prompt_text)
 
         saved_count = 0
         for row_idx, (model_id, response, checkbox) in self.temp_results.items():

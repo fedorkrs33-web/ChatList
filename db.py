@@ -163,11 +163,12 @@ class Database:
             return -1
 
     def get_all_prompts(self) -> List[Tuple]:
-        """Возвращает все промты (id, created_at, prompt, tags)"""
+        """Возвращает все промпты как список словарей"""
         try:
             cursor = self.conn.cursor()
             cursor.execute("SELECT id, created_at, prompt, tags FROM prompts ORDER BY created_at DESC")
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]  # ✅ Преобразуем Row → dict
         except Exception as e:
             print(f"[DB] Ошибка загрузки промтов: {e}")
             return []
@@ -250,6 +251,35 @@ class Database:
             return []
 
     # === Методы для models ===
+    def save_models(self, models: list):
+        """Полностью заменяет таблицу моделей (или обновляет)"""
+        try:
+            cursor = self.conn.cursor()
+            # Удаляем старые (или можно обновлять по ID — зависит от логики)
+            # ВАЖНО: если модели используются в results — удаление сломает связи!
+            # Альтернатива: UPDATE + INSERT
+
+            # Простой вариант: очищаем и вставляем заново
+            cursor.execute("DELETE FROM models")
+            for model in models:
+                cursor.execute("""
+                    INSERT INTO models (id, name, api_url, api_key_var, is_active, provider, model_name)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    model["id"],
+                    model["name"],
+                    model["api_url"],
+                    model["api_key_var"],
+                    int(model["is_active"]),
+                    model["provider"],
+                    model["model_name"]
+                ))
+            self.conn.commit()
+            print(f"[DB] Сохранено {len(models)} моделей")
+        except Exception as e:
+            print(f"[DB] Ошибка сохранения моделей: {e}")
+            raise
+
     def get_active_models(self):
         query = "SELECT * FROM models WHERE is_active = 1 ORDER BY id"
         try:
@@ -278,15 +308,12 @@ class Database:
 
     def update_model_status(self, model_id: int, is_active: bool):
         """Включает/выключает модель"""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "UPDATE models SET is_active = ? WHERE id = ?",
-                (1 if is_active else 0, model_id)
-            )
-            self.conn.commit()
-        except Exception as e:
-            print(f"[DB] Ошибка обновления статуса модели: {e}")
+        cursor = self.conn.cursor()  # ✅
+        cursor.execute(
+            "UPDATE models SET is_active = ? WHERE id = ?",
+            (int(is_active), model_id)
+        )
+        self.conn.commit()
 
     def delete_prompt(self, prompt_id: int):
         """Удаляет промт и все связанные результаты"""

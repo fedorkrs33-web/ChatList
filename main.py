@@ -27,7 +27,7 @@ try:
 except ImportError:
     __version__ = "dev"  # fallback, если нет файла
 
-class ChatListApp(QMainWindow): 
+class ChatListApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = Database()
@@ -187,7 +187,7 @@ class ChatListApp(QMainWindow):
         self.results_table.verticalHeader().setVisible(True)
 
 
-
+        
         # 🔧 Настройка ширины
         results_header = self.results_table.horizontalHeader()
         results_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -774,7 +774,7 @@ class ChatListApp(QMainWindow):
         models_layout = QVBoxLayout()
         self.tab_models = QWidget()
         self.tab_models.setLayout(models_layout)
-        
+
         # Таблица моделей
         self.models_table = QTableWidget()
         self.models_table.setSortingEnabled(True)  # ✅ сортировка
@@ -809,7 +809,7 @@ class ChatListApp(QMainWindow):
         from models import ModelsManager
         editor = ModelsManager(db=self.db, parent=self)  # ✅ Передаём self.db
         editor.open_editor()
-
+    
     def load_models(self):
         """Загружает все модели из БД через self.db"""
         try:
@@ -1522,13 +1522,13 @@ class ChatListApp(QMainWindow):
                     model_name = self.results_table.item(row, 0).text()
                     response_text = label.text()
 
-                    msg_box = QMessageBox(self)
-                    msg_box.setWindowTitle(f"Полный ответ: {model_name}")
-                    msg_box.setText("Ответ скопирован в буфер. Нажмите 'Показать подробности' для просмотра.")
-                    msg_box.setDetailedText(response_text)
-                    msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                    msg_box.setIcon(QMessageBox.Icon.Information)
-                    msg_box.exec()
+                msg_box = QMessageBox(self)
+                msg_box.setWindowTitle(f"Полный ответ: {model_name}")
+                msg_box.setText("Ответ скопирован в буфер. Нажмите 'Показать подробности' для просмотра.")
+                msg_box.setDetailedText(response_text)
+                msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg_box.setIcon(QMessageBox.Icon.Information)
+                msg_box.exec()
 
 #============= ВКЛАДКА 5: Настройки =============
     def create_settings_tab(self):
@@ -1658,7 +1658,6 @@ class ChatListApp(QMainWindow):
         layout.addStretch()
 
         return tab
-                
 
 # ============= ЗАПУСК ПРИЛОЖЕНИЯ =============
 if __name__ == "__main__":

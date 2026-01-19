@@ -72,65 +72,6 @@ class ChatListApp(QMainWindow):
         for widget in self.findChildren(QWidget):
             widget.setFont(font)
 
-    # main.py
-
-    def load_prompts(self):
-        """Загружает промпты из БД и отображает в таблице"""
-        prompts = self.db.get_all_prompts()  # ✅ db.py возвращает список
-        self.prompts_table.setRowCount(0)
-        self.prompts_table.setColumnCount(4)
-        self.prompts_table.setHorizontalHeaderLabels(["ID", "Дата", "Текст", "Действия"])
-
-        for row_idx, prompt in enumerate(prompts):
-            self.prompts_table.insertRow(row_idx)
-
-            # ID
-            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(prompt["id"])))
-
-            # Дата
-            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(prompt["created_at"]))
-
-            # Текст (обрезанный)
-            text = prompt["prompt"] or ""
-            display_text = text[:50] + "..." if len(text) > 50 else text
-            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(display_text))
-
-            # Действия: кнопки
-            btn_layout = QHBoxLayout()
-            edit_btn = QPushButton("Редактировать")
-            delete_btn = QPushButton("Удалить")
-            btn_layout.addWidget(edit_btn)
-            btn_layout.addWidget(delete_btn)
-            btn_layout.setContentsMargins(0, 0, 0, 0)
-
-            btn_widget = QWidget()
-            btn_widget.setLayout(btn_layout)
-            self.prompts_table.setCellWidget(row_idx, 3, btn_widget)
-
-            # Привязка действий
-            edit_btn.clicked.connect(lambda checked, p=prompt: self.edit_prompt(p))
-            delete_btn.clicked.connect(lambda checked, p=prompt: self.delete_prompt(p))
-
-
-    def filter_results_table(self):
-        """Фильтрует и отображает результаты (временная заглушка)"""
-        pass  # Пока пусто — или реализуйте на основе all_results_data
-
-    def update_preview_on_theme_change(self):
-        """Если вкладка 'Предпросмотр' активна — перезагружает текущий просмотр"""
-        # Проверяем, открыта ли вкладка "Предпросмотр Markdown"
-        current_tab_index = self.tab_widget.currentIndex()
-        if current_tab_index != 3:  # 🔢 Убедитесь, что это индекс вкладки "Предпросмотр"
-            return  # Не на той вкладке — выходим
-
-        # Проверяем, есть ли выбранная строка
-        selected_row = self.preview_table.currentRow()
-        if selected_row < 0:
-            return
-
-        # Перезапускаем предпросмотр (это вызовет перегенерацию HTML с новой темой)
-        self.load_preview(selected_row, 0)
-
     def init_ui(self):
         # Центральный виджет
         central_widget = QWidget()
@@ -169,6 +110,7 @@ class ChatListApp(QMainWindow):
 
         # Таблица промтов
         self.prompts_table = QTableWidget()
+        self.prompts_table.setSortingEnabled(True)  # ✅ сортировка
         self.prompts_table.setColumnCount(5)
         self.prompts_table.setHorizontalHeaderLabels(["ID", "Дата", "Промт", "Теги", "Действия"])
         header = self.prompts_table.horizontalHeader()
@@ -207,6 +149,7 @@ class ChatListApp(QMainWindow):
 
         # Таблица результатов
         self.results_table = QTableWidget()
+        self.results_table.setSortingEnabled(True)  # ✅ сортировка
         self.results_table.setColumnCount(3)
         self.results_table.setHorizontalHeaderLabels(["Модель", "Ответ", "Выбрать"])
         # Разрешить перенос текста в ячейке "Ответ"
@@ -255,16 +198,42 @@ class ChatListApp(QMainWindow):
 
         results_layout.addLayout(action_layout)
 
-        # ============= ВКЛАДКА 3: МОДЕЛИ =============
-        self.models_tab = QWidget()
-        self.models_layout = QVBoxLayout(self.models_tab)
+    def load_prompts(self):
+        """Загружает промпты из БД и отображает в таблице"""
+        prompts = self.db.get_all_prompts()  # ✅ db.py возвращает список
+        self.prompts_table.setRowCount(0)
+        self.prompts_table.setColumnCount(4)
+        self.prompts_table.setHorizontalHeaderLabels(["ID", "Дата", "Текст", "Действия"])
 
-        # Таблица
-        self.models_table = QTableWidget()
-        self.models_table.setColumnCount(6)
-        self.models_table.setHorizontalHeaderLabels(["ID", "Имя", "Провайдер", "API URL", "Активна", "Действия"])
-        self.models_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.models_layout.addWidget(self.models_table)
+        for row_idx, prompt in enumerate(prompts):
+            self.prompts_table.insertRow(row_idx)
+
+            # ID
+            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(prompt["id"])))
+
+            # Дата
+            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(prompt["created_at"]))
+
+            # Текст (обрезанный)
+            text = prompt["prompt"] or ""
+            display_text = text[:50] + "..." if len(text) > 50 else text
+            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(display_text))
+
+            # Действия: кнопки
+            btn_layout = QHBoxLayout()
+            edit_btn = QPushButton("Редактировать")
+            delete_btn = QPushButton("Удалить")
+            btn_layout.addWidget(edit_btn)
+            btn_layout.addWidget(delete_btn)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+
+            btn_widget = QWidget()
+            btn_widget.setLayout(btn_layout)
+            self.prompts_table.setCellWidget(row_idx, 3, btn_widget)
+
+            # Привязка действий
+            edit_btn.clicked.connect(lambda checked, p=prompt: self.edit_prompt(p))
+            delete_btn.clicked.connect(lambda checked, p=prompt: self.delete_prompt(p))
 
 
     def on_search(self, text):
@@ -480,7 +449,7 @@ class ChatListApp(QMainWindow):
         dialog.exec()
 
     def parse_enhancement_response(self, text: str):
-        """Разбирает ответ от AI — устойчиво к markdown, форматированию"""
+        """Разбирает ответ от AI — устойчиво к markdown форматированию"""
         text = text.strip()
         result = {
             "enhanced": "",
@@ -578,50 +547,13 @@ class ChatListApp(QMainWindow):
         """Восстанавливает курсор"""
         QApplication.restoreOverrideCursor()
 
-
-    def update_response_styles(self):
-        theme = self.db.get_setting("theme", "light")
-        if theme == "dark":
-            bg_color = "#3c3c3c"
-            border_color = "#555"
-            scroll_bg = "#333"
-            handle_color = "#888"
-        else:
-            bg_color = "#ffffff"
-            border_color = "#ddd"
-            scroll_bg = "#f0f0f0"
-            handle_color = "#c0c0c0"
-
-        for row in range(self.results_table.rowCount()):
-            scroll_area = self.results_table.cellWidget(row, 1)
-            if isinstance(scroll_area, QScrollArea):
-                scroll_area.setStyleSheet(f"""
-                    QScrollArea {{
-                        border: 1px solid {border_color};
-                        border-radius: 4px;
-                        background: {bg_color};
-                    }}
-                    QScrollBar:vertical {{
-                        width: 12px;
-                        background: {scroll_bg};
-                        border-left: 1px solid {border_color};
-                    }}
-                    QScrollBar::handle:vertical {{
-                        background: {handle_color};
-                        border-radius: 6px;
-                    }}
-                """)
-                label = scroll_area.widget()
-                if isinstance(label, QLabel):
-                    label.setStyleSheet(get_label_style())
-
     def load_saved_results(self):
         """Загружает сохранённые результаты из БД в таблицу"""
         # Очищаем текущие результаты
         self.clear_results()
 
         # Получаем все сохранённые результаты
-        saved_results = db.get_all_saved_results()
+        saved_results = self.db.get_all_saved_results()
 
         if not saved_results:
             QMessageBox.information(self, "Нет данных", "Нет сохранённых результатов.")
@@ -818,10 +750,7 @@ class ChatListApp(QMainWindow):
 
         return html
 
-
-        
-     #============= ВКЛАДКА 3: МОДЕЛИ =============
-
+    #============= ВКЛАДКА 3: МОДЕЛИ =============
     def create_models_tab(self):
         """Создаёт вкладку 'Модели'"""
         self.models_tab = QWidget()
@@ -956,6 +885,21 @@ class ChatListApp(QMainWindow):
         layout.addWidget(refresh_btn)
 
         return tab
+    
+    def update_preview_on_theme_change(self):
+        """Если вкладка 'Предпросмотр' активна — перезагружает текущий просмотр"""
+        # Проверяем, открыта ли вкладка "Предпросмотр Markdown"
+        current_tab_index = self.tab_widget.currentIndex()
+        if current_tab_index != 3:  # 🔢 Убедитесь, что это индекс вкладки "Предпросмотр"
+            return  # Не на той вкладке — выходим
+
+        # Проверяем, есть ли выбранная строка
+        selected_row = self.preview_table.currentRow()
+        if selected_row < 0:
+            return
+
+        # Перезапускаем предпросмотр (это вызовет перегенерацию HTML с новой темой)
+        self.load_preview(selected_row, 0)
 
     def load_preview_list(self):
         """Загружает список сохранённых результатов в таблицу"""
@@ -1344,7 +1288,7 @@ class ChatListApp(QMainWindow):
         saved_count = 0
         for row_idx, (model_id, response, checkbox) in self.temp_results.items():
             if checkbox.isChecked():
-                db.save_result(prompt_id, model_id, response)
+                self.db.save_result(prompt_id, model_id, response)
                 saved_count += 1
 
         if saved_count > 0:

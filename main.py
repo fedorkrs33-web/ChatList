@@ -1184,6 +1184,55 @@ class ChatListApp(QMainWindow):
         # Объединяем всё
         return ''.join(html_lines)
 
+
+    def load_prompts(self):
+        """Загружает все промты в таблицу"""
+        self.prompts_table.setRowCount(0)
+        prompts = self.db.get_all_prompts()
+
+        for row_idx, p in enumerate(prompts):
+            self.prompts_table.insertRow(row_idx)
+
+            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(p["id"])))
+            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(p["created_at"]))
+            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
+            self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
+
+            self.prompts_table.setRowHeight(row_idx, 45)
+
+            # Контейнер для кнопок
+            btn_widget = QWidget()
+            btn_layout = QHBoxLayout(btn_widget)
+            btn_layout.setContentsMargins(2, 0, 0, 2)
+            btn_layout.setSpacing(3)
+            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            # Создаём кнопки
+            copy_btn = QPushButton("📋 Копировать")
+            copy_btn.setFixedSize(90, 30)
+
+            delete_btn = QPushButton("🗑️ Удалить")
+            delete_btn.setFixedSize(90, 30)
+            delete_btn.setStyleSheet("QPushButton { color: #a00; }")
+
+            # Сохраняем ссылки на кнопки внутри виджета, чтобы Python не удалил
+            btn_widget.copy_btn = copy_btn
+            btn_widget.delete_btn = delete_btn
+
+            # Подключаем сигналы
+            from functools import partial
+            copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
+            delete_btn.clicked.connect(partial(self.delete_prompt, p["id"]))
+
+            # Добавляем в макет
+            btn_layout.addWidget(copy_btn)
+            btn_layout.addWidget(delete_btn)
+            btn_widget.setLayout(btn_layout)
+
+            # Устанавливаем в таблицу
+            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
+
+
     def on_search(self):
         """Поиск в промтах"""
         query = self.search_input.text().strip()

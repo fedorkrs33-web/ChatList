@@ -753,17 +753,11 @@ class ChatListApp(QMainWindow):
     #============= ВКЛАДКА 3: МОДЕЛИ =============
     def create_models_tab(self):
         """Создаёт вкладку 'Модели'"""
-<<<<<<< HEAD
         self.models_tab = QWidget()
         layout = QVBoxLayout(self.models_tab)
-
-        
-=======
         models_layout = QVBoxLayout()
         self.tab_models = QWidget()
         self.tab_models.setLayout(models_layout)
-
->>>>>>> b50ce645a322d2a9370d3fa282c0c4fae33ec0fa
         # Таблица моделей
         self.models_table = QTableWidget()
         self.models_table.setSortingEnabled(True)  # ✅ сортировка
@@ -801,11 +795,9 @@ class ChatListApp(QMainWindow):
     
     def open_models_editor(self):
         from models import ModelsManager
-<<<<<<< HEAD
         manager = ModelsManager(db=self.db, parent=self)
         manager.open_editor()
         self.load_models()  # Обновить после закрытия
-=======
         editor = ModelsManager(db=self.db, parent=self)  # ✅ Передаём self.db
         editor.open_editor()
     
@@ -822,7 +814,6 @@ class ChatListApp(QMainWindow):
                 self.models_table.setItem(row, 2, QTableWidgetItem(model["api_url"]))
                 self.models_table.setItem(row, 3, QTableWidgetItem(model["model_name"]))
                 self.models_table.setItem(row, 4, QTableWidgetItem(model["provider"]))
->>>>>>> b50ce645a322d2a9370d3fa282c0c4fae33ec0fa
 
                 active_text = "Да" if model["is_active"] else "Нет"
                 active_item = QTableWidgetItem(active_text)
@@ -1245,9 +1236,6 @@ class ChatListApp(QMainWindow):
         # Объединяем всё
         return ''.join(html_lines)
 
-<<<<<<< HEAD
-=======
-
     def load_prompts(self):
         """Загружает все промты в таблицу"""
         self.prompts_table.setRowCount(0)
@@ -1344,8 +1332,6 @@ class ChatListApp(QMainWindow):
             # Устанавливаем в таблицу
             self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
 
-
->>>>>>> b50ce645a322d2a9370d3fa282c0c4fae33ec0fa
     def copy_prompt_to_input(self, text):
         """Копирует переданный текст промта в поле ввода"""
         self.prompt_input.setPlainText(text)

@@ -810,6 +810,100 @@ class ChatListApp(QMainWindow):
         editor = ModelsManager(db=self.db, parent=self)  # ✅ Передаём self.db
         editor.open_editor()
 
+    def load_models(self):
+        """Загружает все модели из БД через self.db"""
+        try:
+            models = self.db.get_all_models()  # ✅ Должен быть в db.py
+            self.models_table.setRowCount(0)
+            for model in models:
+                row = self.models_table.rowCount()
+                self.models_table.insertRow(row)
+                self.models_table.setItem(row, 0, QTableWidgetItem(str(model["id"])))
+                self.models_table.setItem(row, 1, QTableWidgetItem(model["name"]))
+                self.models_table.setItem(row, 2, QTableWidgetItem(model["api_url"]))
+                self.models_table.setItem(row, 3, QTableWidgetItem(model["model_name"]))
+                self.models_table.setItem(row, 4, QTableWidgetItem(model["provider"]))
+
+                active_text = "Да" if model["is_active"] else "Нет"
+                active_item = QTableWidgetItem(active_text)
+                active_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.models_table.setItem(row, 5, active_item)
+
+                # Управление — заглушка
+                self.models_table.setItem(row, 6, QTableWidgetItem("..."))
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить модели из БД:\n{e}")
+
+
+    def update_model_field(self, model_id: int, field: str, value: str):
+        """Обновляет поле модели в БД"""
+        try:
+            # Обновляем в БД
+            Model.update_field(model_id, field, value)
+            # Обновляем статус
+            self.statusBar().showMessage(f"✅ Поле '{field}' модели обновлено", 3000)
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить поле:\n{str(e)}")
+
+
+    def update_model_status(self, model_id: int, checkbox: QCheckBox):
+        """Обновляет статус модели в БД"""
+        is_active = checkbox.isChecked()
+        try:
+            Model.update_status(model_id, is_active)
+            status_text = "активна" if is_active else "неактивна"
+            self.statusBar().showMessage(f"Модель обновлена: статус '{status_text}'", 3000)
+            QMessageBox.information(self, "Готово", f"Статус модели изменён на '{status_text}'")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить статус модели:\n{str(e)}")
+
+    def load_prompts(self):
+        """Загружает все промты в таблицу"""
+        self.prompts_table.setRowCount(0)
+        prompts = self.db.get_all_prompts()
+
+        for row_idx, p in enumerate(prompts):
+            self.prompts_table.insertRow(row_idx)
+
+            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(p["id"])))
+            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(p["created_at"]))
+            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
+            self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
+
+            self.prompts_table.setRowHeight(row_idx, 45)
+
+            # Контейнер для кнопок
+            btn_widget = QWidget()
+            btn_layout = QHBoxLayout(btn_widget)
+            btn_layout.setContentsMargins(2, 0, 0, 2)
+            btn_layout.setSpacing(3)
+            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            # Создаём кнопки
+            copy_btn = QPushButton("📋 Копировать")
+            copy_btn.setFixedSize(90, 30)
+
+            delete_btn = QPushButton("🗑️ Удалить")
+            delete_btn.setFixedSize(90, 30)
+            delete_btn.setStyleSheet("QPushButton { color: #a00; }")
+
+            # Сохраняем ссылки на кнопки внутри виджета, чтобы Python не удалил
+            btn_widget.copy_btn = copy_btn
+            btn_widget.delete_btn = delete_btn
+
+            # Подключаем сигналы
+            from functools import partial
+            copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
+            delete_btn.clicked.connect(partial(self.delete_prompt, p["id"]))
+
+            # Добавляем в макет
+            btn_layout.addWidget(copy_btn)
+            btn_layout.addWidget(delete_btn)
+            btn_widget.setLayout(btn_layout)
+
+            # Устанавливаем в таблицу
+            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
 
 
     #============= ВКЛАДКА 4: Предпросмотр Markdown =============
@@ -1089,108 +1183,6 @@ class ChatListApp(QMainWindow):
 
         # Объединяем всё
         return ''.join(html_lines)
-
-    def load_models(self):
-        """Загружает все модели из БД через self.db"""
-        try:
-            models = self.db.get_all_models()  # ✅ Должен быть в db.py
-            self.models_table.setRowCount(0)
-            for model in models:
-                row = self.models_table.rowCount()
-                self.models_table.insertRow(row)
-                self.models_table.setItem(row, 0, QTableWidgetItem(str(model["id"])))
-                self.models_table.setItem(row, 1, QTableWidgetItem(model["name"]))
-                self.models_table.setItem(row, 2, QTableWidgetItem(model["api_url"]))
-                self.models_table.setItem(row, 3, QTableWidgetItem(model["model_name"]))
-                self.models_table.setItem(row, 4, QTableWidgetItem(model["provider"]))
-
-                active_text = "Да" if model["is_active"] else "Нет"
-                active_item = QTableWidgetItem(active_text)
-                active_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.models_table.setItem(row, 5, active_item)
-
-                # Управление — заглушка
-                self.models_table.setItem(row, 6, QTableWidgetItem("..."))
-
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить модели из БД:\n{e}")
-
-
-    def update_model_field(self, model_id: int, field: str, value: str):
-        """Обновляет поле модели в БД"""
-        try:
-            # Обновляем в БД
-            Model.update_field(model_id, field, value)
-            # Обновляем статус
-            self.statusBar().showMessage(f"✅ Поле '{field}' модели обновлено", 3000)
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить поле:\n{str(e)}")
-
-
-    def on_model_status_changed(self, model_id: int, state: int):
-        """Вызывается при изменении состояния чекбокса модели"""
-        # Метод для отслеживания изменений (можно расширить логикой при необходимости)
-        # state: 0 = Unchecked, 2 = Checked (Qt.CheckState)
-        pass
-
-    def update_model_status(self, model_id: int, checkbox: QCheckBox):
-        """Обновляет статус модели в БД"""
-        is_active = checkbox.isChecked()
-        try:
-            Model.update_status(model_id, is_active)
-            status_text = "активна" if is_active else "неактивна"
-            self.statusBar().showMessage(f"Модель обновлена: статус '{status_text}'", 3000)
-            QMessageBox.information(self, "Готово", f"Статус модели изменён на '{status_text}'")
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить статус модели:\n{str(e)}")
-
-    def load_prompts(self):
-        """Загружает все промты в таблицу"""
-        self.prompts_table.setRowCount(0)
-        prompts = self.db.get_all_prompts()
-
-        for row_idx, p in enumerate(prompts):
-            self.prompts_table.insertRow(row_idx)
-
-            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(p["id"])))
-            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(p["created_at"]))
-            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
-            self.prompts_table.setItem(row_idx, 3, QTableWidgetItem(p["tags"] or ""))
-
-            self.prompts_table.setRowHeight(row_idx, 45)
-
-            # Контейнер для кнопок
-            btn_widget = QWidget()
-            btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(2, 0, 0, 2)
-            btn_layout.setSpacing(3)
-            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            # Создаём кнопки
-            copy_btn = QPushButton("📋 Копировать")
-            copy_btn.setFixedSize(90, 30)
-
-            delete_btn = QPushButton("🗑️ Удалить")
-            delete_btn.setFixedSize(90, 30)
-            delete_btn.setStyleSheet("QPushButton { color: #a00; }")
-
-            # Сохраняем ссылки на кнопки внутри виджета, чтобы Python не удалил
-            btn_widget.copy_btn = copy_btn
-            btn_widget.delete_btn = delete_btn
-
-            # Подключаем сигналы
-            from functools import partial
-            copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
-            delete_btn.clicked.connect(partial(self.delete_prompt, p["id"]))
-
-            # Добавляем в макет
-            btn_layout.addWidget(copy_btn)
-            btn_layout.addWidget(delete_btn)
-            btn_widget.setLayout(btn_layout)
-
-            # Устанавливаем в таблицу
-            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
-
 
     def on_search(self):
         """Поиск в промтах"""
@@ -1489,6 +1481,7 @@ class ChatListApp(QMainWindow):
                     msg_box.setIcon(QMessageBox.Icon.Information)
                     msg_box.exec()
 
+#============= ВКЛАДКА 5: Настройки =============
     def create_settings_tab(self):
         """Создаёт вкладку 'Настройки'"""
         tab = QWidget()
@@ -1553,6 +1546,7 @@ class ChatListApp(QMainWindow):
         for widget in self.findChildren(QWidget):
             widget.setFont(font)
 
+#============= ВКЛАДКА 6: Справка =============
     def create_help_tab(self):
         """Создаёт вкладку 'Справка'"""
         tab = QWidget()

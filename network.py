@@ -200,6 +200,7 @@ class Network:
             error_msg = f"❌ GigaChat: {str(e)}"
             print(error_msg)
             return error_msg
+        
     @staticmethod
     def _send_to_yandex(prompt: str) -> str:
         """Отправка в Yandex GPT через requests (без SDK)"""

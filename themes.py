@@ -27,7 +27,7 @@ STYLES = {
         QPushButton {
             background-color: #d0d0d0;
             border: 1px solid #aaa;
-            padding: 5px;
+            padding: 3px;
             border-radius: 3px;
         }
         QPushButton:hover {
@@ -49,7 +49,7 @@ STYLES = {
             background-color: white;
             color: #000;
             border: 1px solid #aaa;
-            padding: 5px;
+            padding: 3px;
         }
         QLabel {
             color: #000;

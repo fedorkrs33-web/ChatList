@@ -185,6 +185,16 @@ class Database:
         except Exception as e:
             print(f"[DB] Ошибка поиска промтов: {e}")
             return []
+        
+    def delete_prompt(self, prompt_id: int):
+        """Удаляет промт и все связанные результаты"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("DELETE FROM results WHERE prompt_id = ?", (prompt_id,))
+            cursor.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
+            self.conn.commit()
+        except Exception as e:
+            print(f"[DB] Ошибка удаления промта: {e}")
 
     # === Методы для results ===
     def get_all_saved_results(self):
@@ -251,35 +261,6 @@ class Database:
             return []
 
     # === Методы для models ===
-    def save_models(self, models: list):
-        """Полностью заменяет таблицу моделей (или обновляет)"""
-        try:
-            cursor = self.conn.cursor()
-            # Удаляем старые (или можно обновлять по ID — зависит от логики)
-            # ВАЖНО: если модели используются в results — удаление сломает связи!
-            # Альтернатива: UPDATE + INSERT
-
-            # Простой вариант: очищаем и вставляем заново
-            cursor.execute("DELETE FROM models")
-            for model in models:
-                cursor.execute("""
-                    INSERT INTO models (id, name, api_url, api_key_var, is_active, provider, model_name)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    model["id"],
-                    model["name"],
-                    model["api_url"],
-                    model["api_key_var"],
-                    int(model["is_active"]),
-                    model["provider"],
-                    model["model_name"]
-                ))
-            self.conn.commit()
-            print(f"[DB] Сохранено {len(models)} моделей")
-        except Exception as e:
-            print(f"[DB] Ошибка сохранения моделей: {e}")
-            raise
-
     def get_active_models(self):
         query = "SELECT * FROM models WHERE is_active = 1 ORDER BY id"
         try:
@@ -292,19 +273,26 @@ class Database:
             return []
 
     def get_all_models(self):
-        """Возвращает все модели из таблицы models"""
         try:
             cursor = self.conn.cursor()
-            cursor.execute("""
-                SELECT id, name, api_url, api_key_var, is_active, provider, model_name
-                FROM models
-                ORDER BY id
-            """)
+            cursor.execute("SELECT * FROM models ORDER BY name")
             rows = cursor.fetchall()
-            return [dict(row) for row in rows]
+            models = []
+            for row in rows:
+                models.append({
+                    "id": row["id"],
+                    "name": row["name"],
+                    "api_url": row["api_url"],
+                    "api_key_var": row["api_key_var"],
+                    "is_active": row["is_active"],  # ← Должно быть 0 или 1
+                    "provider": row["provider"],
+                    "model_name": row["model_name"]
+                })
+            return models
         except Exception as e:
             print(f"[DB] Ошибка загрузки моделей: {e}")
             return []
+
 
     def update_model_status(self, model_id: int, is_active: bool):
         """Включает/выключает модель"""
@@ -315,15 +303,54 @@ class Database:
         )
         self.conn.commit()
 
-    def delete_prompt(self, prompt_id: int):
-        """Удаляет промт и все связанные результаты"""
+    def save_models(self, models: list):
+        """Обновляет или добавляет модели по ID"""
         try:
             cursor = self.conn.cursor()
-            cursor.execute("DELETE FROM results WHERE prompt_id = ?", (prompt_id,))
-            cursor.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
+            for model in models:
+                if model["id"] > 0:
+                    # ✅ Обновляем — правильный порядок
+                    cursor.execute("""
+                        UPDATE models SET 
+                            name = ?, 
+                            api_url = ?, 
+                            api_key_var = ?,
+                            is_active = ?, 
+                            provider = ?, 
+                            model_name = ?
+                        WHERE id = ?
+                    """, (
+                        model["name"],
+                        model["api_url"],
+                        model["api_key_var"],
+                        int(model["is_active"]),
+                        model["provider"],
+                        model["model_name"],
+                        model["id"]  # ← id в конце
+                    ))
+                else:
+                    # ✅ Новая модель — правильный порядок
+                    cursor.execute("""
+                        INSERT INTO models (name, api_url, api_key_var, is_active, provider, model_name)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        model["name"],
+                        model["api_url"],
+                        model["api_key_var"],
+                        int(model["is_active"]),
+                        model["provider"],
+                        model["model_name"]
+                        # id не указываем — AUTOINCREMENT
+                    ))
             self.conn.commit()
+            print(f"[DB] Обновлено/добавлено {len(models)} моделей")
+            return True
+
         except Exception as e:
-            print(f"[DB] Ошибка удаления промта: {e}")
+            print(f"[DB] Ошибка при сохранении моделей: {e}")
+            self.conn.rollback()
+            raise
+
 
     # === Методы для results ===
     def save_result(self, prompt_id: int, model_id: int, response: str):

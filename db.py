@@ -345,13 +345,24 @@ class Database:
             self.conn.commit()
             print(f"[DB] Обновлено/добавлено {len(models)} моделей")
             return True
-
         except Exception as e:
             print(f"[DB] Ошибка при сохранении моделей: {e}")
             self.conn.rollback()
             raise
 
-
+    def delete_model(self, model_id: int):
+        """Удаляет модель и все связанные результаты"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("DELETE FROM results WHERE model_id = ?", (model_id,))
+            cursor.execute("DELETE FROM models WHERE id = ?", (model_id,))
+            self.conn.commit()  # ✅ Обязательно!
+            print(f"[DB] Модель с ID {model_id} удалена")
+        except Exception as e:
+            print(f"[DB] Ошибка удаления модели: {e}")
+            self.conn.rollback()
+            raise
+    
     # === Методы для results ===
     def save_result(self, prompt_id: int, model_id: int, response: str):
         """Сохраняет результат"""

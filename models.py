@@ -282,23 +282,38 @@ class ModelsManager:
 
 
     def delete_model(self):
-        """Удаляет выбранную модель из списка"""
+        """Удаляет выбранную модель из списка и из БД"""
         row = self.table.currentRow()
         if row < 0:
             QMessageBox.warning(self.dialog, "Ошибка", "Выберите строку для удаления")
             return
 
-        model_name = self.models[row]["name"]
+        model = self.models[row]
+        model_name = model["name"]
+
         reply = QMessageBox.question(
             self.dialog,
             "Подтвердите удаление",
             f"Вы действительно хотите удалить модель:\n\"{model_name}\"?"
         )
         if reply == QMessageBox.StandardButton.Yes:
+            # Удаляем из списка
             del self.models[row]
             self.refresh_table()
-        # ✅ Сохраняем изменения в БД
-        self.save_to_db()    
+
+            # Удаляем из БД, если модель существовала (id > 0)
+            if model["id"] > 0:
+                try:
+                    # Используем метод из db.py — он сам вызывает commit
+                    self.db.delete_model(model["id"])
+                    print(f"[ModelsManager] Модель {model['name']} (ID: {model['id']}) удалена из БД")
+                except Exception as e:
+                    QMessageBox.critical(self.dialog, "Ошибка", f"Не удалось удалить модель из базы:\n{e}")
+                    return
+
+            # Обновляем UI в основном окне
+            if hasattr(self.parent, "load_models"):
+                self.parent.load_models()
 
     def save_to_db(self):
         """Сохраняет модели из внутреннего списка self.models, а не из таблицы"""

@@ -1,7 +1,5 @@
 # main.py
 import sys
-print("Python:", sys.executable)
-print("Путь к Python:", sys.path[:5])  # первые 5 путей
 import os
 import markdown
 import re
@@ -10,17 +8,15 @@ from PyQt6.QtWidgets import (
     QPushButton, QTextEdit, QTableWidget, QTableWidgetItem,
     QCheckBox, QLabel, QLineEdit, QHeaderView, QTabWidget,
     QFileDialog, QMessageBox, QScrollArea, QComboBox,
-    QInputDialog, QDialog, QSpinBox
+    QInputDialog, QDialog, QSpinBox, QProgressBar
 )
 from db import Database
 from themes import apply_theme, get_font, get_label_style
 from functools import partial
-from PyQt6.QtCore import Qt
 from network import Network
 from datetime import datetime
-from PyQt6.QtCore import Qt, QTimer  # Добавьте QTimer
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QCursor, QGuiApplication, QIcon, QPixmap  # ✅ Добавлен QPixmap
-from PyQt6.QtCore import Qt
 from models import ModelsManager
 
 # Импорт версии
@@ -33,22 +29,28 @@ class ChatListApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = Database()
+        self.network = Network()
 
         # Загружаем настройки
-        theme = self.db.get_setting("theme", "light")
+        self.load_theme()
         font_size = int(self.db.get_setting("font_size", "12"))  # ✅ Превращаем в число  # Дефолт: 12
         
         import themes
         self.themes = themes
-
-        # Применяем
-        apply_theme(self, theme)           # ← Из themes.py
         
         self.setWindowTitle(f"ChatList — Сравнение AI-ответов (v{__version__})")
         self.setWindowIcon(QIcon("app.ico"))
         self.resize(1000, 700)
         self.statusBar()  # Инициализирует statusBar
-        self.all_results_data = []  # Для хранения результатов (поиск, сортировка)
+
+        # === Индикатор прогресса ===
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedWidth(200)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.hide()
+        self.statusBar().addPermanentWidget(self.progress_bar)
+        # === Конец ===
 
         self.init_ui()
         self.apply_font_size(font_size)
@@ -61,16 +63,13 @@ class ChatListApp(QMainWindow):
         self.temp_results = {}
 
     def load_theme(self):
-        """Загружает тему из БД и применяет"""
         theme = self.db.get_setting("theme", "light")
-        self.apply_theme(theme)
+        apply_theme(self, theme)
 
     def apply_font_size(self, size: int):
-        """Применяет размер шрифта ко всему интерфейсу"""
-        font = self.font()
-        font.setPointSize(size)
+        """Применяет шрифт ко всему приложению"""
+        font = get_font(size)
         self.setFont(font)
-
         for widget in self.findChildren(QWidget):
             widget.setFont(font)
 
@@ -203,12 +202,16 @@ class ChatListApp(QMainWindow):
         # ============= СОБЫТИЯ =============
     def load_prompts(self):
         """Загружает все промты в таблицу"""
+        # Полная очистка таблицы (включая виджеты)
+        self._clear_table_widgets(self.prompts_table)
         self.prompts_table.setRowCount(0)
+        self.prompts_table.setSortingEnabled(False)  # Отключаем на время
+
         prompts = self.db.get_all_prompts()
 
-        for row_idx, p in enumerate(prompts):
-            self.prompts_table.insertRow(row_idx)
+        self.prompts_table.setRowCount(len(prompts))
 
+        for row_idx, p in enumerate(prompts):
             self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(p["id"])))
             self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(p["created_at"]))
             self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(p["prompt"]))
@@ -223,7 +226,7 @@ class ChatListApp(QMainWindow):
             btn_layout.setSpacing(3)
             btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            # Создаём кнопки
+            # Кнопки
             copy_btn = QPushButton("📋 Копировать")
             copy_btn.setFixedSize(90, 30)
 
@@ -231,69 +234,30 @@ class ChatListApp(QMainWindow):
             delete_btn.setFixedSize(90, 30)
             delete_btn.setStyleSheet("QPushButton { color: #a00; }")
 
-            # Сохраняем ссылки на кнопки внутри виджета, чтобы Python не удалил
+            # Сохраняем ссылки, чтобы Python не удалил
             btn_widget.copy_btn = copy_btn
             btn_widget.delete_btn = delete_btn
 
             # Подключаем сигналы
-            from functools import partial
             copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
-            delete_btn.clicked.connect(partial(self.db.delete_prompt, p["id"]))
+            delete_btn.clicked.connect(partial(self.delete_prompt_by_id, p["id"]))
 
-            # Добавляем в макет
             btn_layout.addWidget(copy_btn)
             btn_layout.addWidget(delete_btn)
             btn_widget.setLayout(btn_layout)
 
-            # Устанавливаем в таблицу
-            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)    
-    
+            self.prompts_table.setCellWidget(row_idx, 4, btn_widget)
 
-    """def load_prompts(self):
-        Загружает промпты из БД и отображает в таблице
-        prompts = self.db.get_all_prompts()  # ✅ db.py возвращает список
-        self.prompts_table.setRowCount(0)
-        self.prompts_table.setColumnCount(4)
-        self.prompts_table.setHorizontalHeaderLabels(["ID", "Дата", "Текст", "Действия"])
+        self.prompts_table.setSortingEnabled(True)  # Включаем обратно
 
-        for row_idx, prompt in enumerate(prompts):
-            self.prompts_table.insertRow(row_idx)
-
-            # ID
-            self.prompts_table.setItem(row_idx, 0, QTableWidgetItem(str(prompt["id"])))
-
-            # Дата
-            self.prompts_table.setItem(row_idx, 1, QTableWidgetItem(prompt["created_at"]))
-
-            # Текст (обрезанный)
-            text = prompt["prompt"] or ""
-            display_text = text[:50] + "..." if len(text) > 50 else text
-            self.prompts_table.setItem(row_idx, 2, QTableWidgetItem(display_text))
-
-            # Действия: кнопки
-            btn_layout = QHBoxLayout()
-            edit_btn = QPushButton("Редактировать")
-            delete_btn = QPushButton("Удалить")
-            btn_layout.addWidget(edit_btn)
-            btn_layout.addWidget(delete_btn)
-            btn_layout.setContentsMargins(0, 0, 0, 0)
-
-            btn_widget = QWidget()
-            btn_widget.setLayout(btn_layout)
-            self.prompts_table.setCellWidget(row_idx, 3, btn_widget)
-
-            # Привязка действий
-            edit_btn.clicked.connect(lambda checked, p=prompt: self.edit_prompt(p))
-            delete_btn.clicked.connect(lambda checked, p=prompt: self.delete_prompt(p))
-    """
-
-    def on_search(self, text):
-        """Фильтрация чатов по введённому тексту"""
-        # Например:
-        for row in range(self.chats_table.rowCount()):
-            item = self.chats_table.item(row, 1)  # Название чата
-            hidden = text.lower() not in item.text().lower() if item else True
-            self.chats_table.setRowHidden(row, hidden)
+    def _clear_table_widgets(self, table: QTableWidget):
+        """Полная очистка виджетов в таблице"""
+        for row in range(table.rowCount()):
+            for col in range(table.columnCount()):
+                widget = table.cellWidget(row, col)
+                if widget:
+                    widget.deleteLater()  # Помечаем на удаление
+        table.clearContents()  # Очищаем содержимое
 
     def enhance_prompt(self):
         """Запускает AI-ассистент для улучшения промта"""
@@ -340,7 +304,7 @@ class ChatListApp(QMainWindow):
         # Показываем "ожидание"
         self.show_wait_cursor()
         try:
-            enhanced = Network.send_prompt_to_model(model, system_prompt)
+            enhanced = self.network.send_prompt_to_model(model, system_prompt)
             print("🔹 [DEBUG] Полный ответ от AI:")
             print(enhanced)  # ← Выводим весь ответ
         finally:
@@ -663,7 +627,7 @@ class ChatListApp(QMainWindow):
             self.temp_results[row_idx] = (None, response, checkbox)
 
         # Подстраиваем высоту строк
-        QTimer.singleShot(50, self.resize_all_rows)
+        QTimer.singleShot(100, self.resize_all_rows)
 
         # Обновляем статус
         self.statusBar().showMessage(f"Загружено {len(saved_results)} сохранённых ответов", 3000)
@@ -817,7 +781,7 @@ class ChatListApp(QMainWindow):
                 label = scroll_area.widget()
                 if label and isinstance(label, QLabel):
                     model_name = self.results_table.item(row, 0).text()
-                    response_text = label.text()
+                    rresponse_text = label.text() if label else ""
 
                 msg_box = QMessageBox(self)
                 msg_box.setWindowTitle(f"Полный ответ: {model_name}")
@@ -889,12 +853,16 @@ class ChatListApp(QMainWindow):
             
     def load_models(self):
         """Загружает модели в таблицу"""
-        models = self.db.get_all_models()
+        # Полная очистка
+        self._clear_table_widgets(self.models_table)
         self.models_table.setRowCount(0)
+        self.models_table.setSortingEnabled(False)
+
+        models = self.db.get_all_models()
+
+        self.models_table.setRowCount(len(models))
 
         for row_idx, model in enumerate(models):
-            self.models_table.insertRow(row_idx)
-
             # ID
             self.models_table.setItem(row_idx, 0, QTableWidgetItem(str(model["id"])))
             # Имя
@@ -914,7 +882,7 @@ class ChatListApp(QMainWindow):
             active_cb.stateChanged.connect(
                 lambda state, mid=model["id"]: self.db.update_model_status(mid, bool(state))
             )
-            
+
             cb_widget = QWidget()
             cb_layout = QHBoxLayout(cb_widget)
             cb_layout.addWidget(active_cb)
@@ -923,8 +891,10 @@ class ChatListApp(QMainWindow):
             cb_widget.setLayout(cb_layout)
             self.models_table.setCellWidget(row_idx, 5, cb_widget)
 
-        # Сортировка по ID
-        self.models_table.sortItems(0)
+        # Восстановим сортировку
+        self.models_table.setSortingEnabled(True)
+        self.models_table.sortItems(0)  # Сортировка по ID
+
 
     def save_model_active_status(self, model_id: int, checkbox: QCheckBox):
         """Сохраняет статус активности модели"""
@@ -1264,7 +1234,7 @@ class ChatListApp(QMainWindow):
             # Подключаем сигналы
             from functools import partial
             copy_btn.clicked.connect(partial(self.copy_prompt_to_input, p["prompt"]))
-            delete_btn.clicked.connect(partial(self.delete_prompt, p["id"]))
+            delete_btn.clicked.connect(partial(self.delete_prompt_by_id, p["id"]))
 
             # Добавляем в макет
             btn_layout.addWidget(copy_btn)
@@ -1278,6 +1248,44 @@ class ChatListApp(QMainWindow):
         """Копирует переданный текст промта в поле ввода"""
         self.prompt_input.setPlainText(text)
         self.statusBar().showMessage("Промт скопирован в поле ввода", 3000)
+
+    def delete_prompt_by_id(self, prompt_id: int):
+        """Удаляет промт по ID через db.delete_prompt"""
+        # Сначала получим текст промта для отображения в предупреждении
+        try:
+            # Получаем промт из БД
+            prompt_row = self.db.cursor.execute(
+                "SELECT prompt FROM prompts WHERE id = ?", (prompt_id,)
+            ).fetchone()
+
+            if not prompt_row:
+                QMessageBox.warning(self, "Ошибка", "Промт не найден.")
+                return
+
+            prompt_text = prompt_row["prompt"][:50] + "..." if len(prompt_row["prompt"]) > 50 else prompt_row["prompt"]
+        except Exception as e:
+            prompt_text = str(prompt_id)
+
+        # Диалог подтверждения
+        reply = QMessageBox.question(
+            self,
+            "Подтвердите удаление",
+            f"Вы действительно хотите удалить промт:\n\n{prompt_text}\n\n(Это действие нельзя отменить)"
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                # Удаляем через db.py
+                self.db.delete_prompt(prompt_id)  # ✅ Вызов метода из db.py
+
+                # Обновляем таблицу
+                self.load_prompts()
+
+                # Уведомление
+                QMessageBox.information(self, "Успешно", "Промт удалён из базы")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось удалить промт:\n{e}")
+
         
     def load_prompt_to_input(self):
         """Загружает выбранный промт в поле ввода"""
@@ -1288,123 +1296,101 @@ class ChatListApp(QMainWindow):
                 self.prompt_input.setPlainText(prompt_item.text())
 
     def send_prompt(self):
-        """Отправляет промт во все активные модели"""
+        """Отправляет промт в модели по одной через QTimer для плавного прогресса"""
         prompt = self.prompt_input.toPlainText().strip()
         if not prompt:
             QMessageBox.warning(self, "Внимание", "Введите промт!")
             return
 
-        # Сохраняем промт в БД
+        # Сохраняем промт
         prompt_id = self.db.save_prompt(prompt)
 
-        # Очищаем предыдущие результаты
+        # Очищаем результаты
         self.clear_results()
 
-        # Получаем активные модели
-        models = self.db.get_active_models()
-        if not models:
-            QMessageBox.warning(self, "Ошибка", "Нет активных моделей. Проверьте настройки.")
+        # Активные модели
+        self.models_to_send = self.db.get_active_models()  # Сохраняем в атрибут
+        if not self.models_to_send:
+            QMessageBox.warning(self, "Ошибка", "Нет активных моделей.")
             return
 
-        # Отправляем во все модели
-        self.results_table.setRowCount(len(models))
+        # Подготавливаем таблицу
+        self.results_table.setRowCount(len(self.models_to_send))
         self.temp_results.clear()
 
-        for row_idx, model in enumerate(models):
-            response = Network.send_prompt_to_model(model, prompt)
+        # Настройка прогресс-бара
+        self.progress_bar.setRange(0, len(self.models_to_send))
+        self.progress_bar.setValue(0)
+        self.progress_bar.show()
+        self.statusBar().showMessage("Отправка запросов...")
 
-            print(f"[DEBUG] {model["name"]}: response={repr(response[:100] if response else None)}")
+        # Запускаем первую итерацию
+        self.current_model_index = 0
+        self.prompt_for_sending = prompt
+        self._send_next_model()
 
-            # Нормализуем ответ
-            if not response or not response.strip():
-                response = f"[Ошибка] Пустой ответ от {model["name"]}"
-            else:
-                response = response.strip()
+    def _send_next_model(self):
+        """Отправляет промт следующей модели"""
+        if self.current_model_index >= len(self.models_to_send):
+            # Завершено
+            self.statusBar().showMessage("Готово!", 3000)
+            QTimer.singleShot(800, self.progress_bar.hide)
+            QTimer.singleShot(100, self.resize_all_rows)
+            return
 
-            # Устанавливаем имя модели
-            item = QTableWidgetItem(model["name"])
-            item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            self.results_table.setItem(row_idx, 0, item)
-            # Создаём QLabel
-            label = QLabel(response)
-            label.setWordWrap(True)
-            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            label.setStyleSheet(get_label_style())
-            
-            # Создаём QScrollArea
-            scroll = QScrollArea()
-            scroll.setWidget(label)
-            scroll.setWidgetResizable(True)
+        model = self.models_to_send[self.current_model_index]
+        row_idx = self.current_model_index
 
-            # 🔧 Определяем цвета
-            theme = self.db.get_setting("theme", "light")
-            if theme == "dark":
-                bg_color = "#3c3c3c"
-                border_color = "#555"
-                scroll_bg = "#333"
-                handle_color = "#888"
-            else:
-                bg_color = "#ffffff"
-                border_color = "#ddd"
-                scroll_bg = "#f0f0f0"
-                handle_color = "#c0c0c0"
+        self.statusBar().showMessage(f"Запрос: {model['name']}")
 
-            scroll.setStyleSheet(f"""
-                QScrollArea {{
-                border: 1px solid {border_color};
-                border-radius: 4px;
-                background: {bg_color};
-            }}
-            QScrollBar:vertical {{
-                width: 12px;
-                background: {scroll_bg};
-                border-left: 1px solid {border_color};
-            }}
-            QScrollBar::handle:vertical {{
-                background: {handle_color};
-                border-radius: 6px;
-                }}
-            """)
+        # Отправляем запрос
+        response = self.network.send_prompt_to_model(model, self.prompt_for_sending)
+
+        print(f"[DEBUG] {model['name']}: {repr(response[:100] if response else None)}")
+
+        # Нормализуем ответ
+        if not response or not response.strip():
+            response = f"[Ошибка] Пустой ответ от {model['name']}"
+        else:
+            response = response.strip()
+
+        # Заполняем строку
+        item = QTableWidgetItem(model["name"])
+        item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.results_table.setItem(row_idx, 0, item)
+
+        label = QLabel(response)
+        label.setWordWrap(True)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        label.setStyleSheet(get_label_style())
+
+        scroll = QScrollArea()
+        scroll.setWidget(label)
+        scroll.setWidgetResizable(True)
+        scroll.setMaximumHeight(200)
+        scroll.setMinimumHeight(60)
+        self.results_table.setCellWidget(row_idx, 1, scroll)
+
+        checkbox = QCheckBox()
+        checkbox_widget = QWidget()
+        layout = QHBoxLayout(checkbox_widget)
+        layout.addWidget(checkbox)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(0, 0, 0, 0)
+        checkbox_widget.setLayout(layout)
+        self.results_table.setCellWidget(row_idx, 2, checkbox_widget)
+
+        self.temp_results[row_idx] = (model["id"], response, checkbox)
+
+        # Обновляем прогресс
+        self.progress_bar.setValue(self.current_model_index + 1)
+
+        # Следующая модель — в следующем цикле обработки событий
+        self.current_model_index += 1
+        QTimer.singleShot(50, self._send_next_model)  # ← Делает интерфейс отзывчивым
 
 
-            # Устанавливаем высоту прокручиваемой области
-            scroll.setMaximumHeight(200)  # Максимальная высота — можно настроить
-            scroll.setMinimumHeight(60)
-
-            # Устанавливаем в ячейку
-            self.results_table.setCellWidget(row_idx, 1, scroll)  # Высота поля ответа
-
-            # Чекбокс
-            checkbox = QCheckBox()
-            checkbox_widget = QWidget()
-            layout = QHBoxLayout(checkbox_widget)
-            layout.addWidget(checkbox)
-            layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.setContentsMargins(0, 0, 0, 0)
-            checkbox_widget.setLayout(layout)
-            self.results_table.setCellWidget(row_idx, 2, checkbox_widget)
-
-            self.temp_results[row_idx] = (model["id"], response, checkbox)
-
-        # После цикла
-        QTimer.singleShot(100, self.resize_all_rows)
-
-    def delete_prompt(self, prompt):
-        """Удаляет промпт и обновляет таблицу"""
-        reply = QMessageBox.question(
-            self,
-            "Подтвердите удаление",
-            f"Вы действительно хотите удалить промпт:\n\"{prompt['prompt'][:50]}...\"?"
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                self.db.delete_prompt(prompt["id"])  # ✅ Удаление из БД
-                self.load_prompts()  # ✅ Обновляем таблицу
-                QMessageBox.information(self, "Успешно", "Промпт удалён")
-            except Exception as e:
-                QMessageBox.critical(self, "Ошибка", f"Не удалось удалить: {e}")
 
     def save_selected(self):
         """Сохраняет выбранные результаты в БД"""

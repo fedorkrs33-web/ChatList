@@ -94,6 +94,7 @@ class Network:
             )
 
             print(f"   🔎 Status: {response.status_code}")
+            print(f"📄 Raw response: {repr(response.text)}") 
 
             if response.status_code in (200, 201):
                 try:

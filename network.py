@@ -1,5 +1,6 @@
 # network.py
 import requests
+import os
 import uuid
 import json
 import base64
@@ -12,12 +13,6 @@ from config import Config
 class NetworkError(Exception):
     """Общее исключение для сетевых ошибок"""
     pass
-
-
-class NetworkError(Exception):
-    """Общее исключение для сетевых ошибок"""
-    pass
-
 
 class Network:
     @staticmethod

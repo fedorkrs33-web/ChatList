@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS prompts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL,
     prompt TEXT,
+    
     tags TEXT
 );
 """
@@ -55,9 +56,8 @@ INITIAL_MODELS = [
     ("2", "Anthropic", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "claude-3-haiku"),
     ("3", "GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
     ("4", "Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
-    ("5", "OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", 1, "openrouter", "openrouter/avto"),
+    ("5", "grok-3-beta", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "grok-3-beta")
 ]
-
 
 class Database:
     def __init__(self, db_path=DB_PATH):

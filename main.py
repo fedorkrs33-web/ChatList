@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QInputDialog, QDialog, QSpinBox, QProgressBar
 )
 from db import Database
+from dotenv import load_dotenv, set_key, get_key
 from themes import apply_theme, get_font, get_label_style
 from functools import partial
 from network import Network
@@ -52,6 +53,16 @@ class ChatListApp(QMainWindow):
         self.statusBar().addPermanentWidget(self.progress_bar)
         # === Конец ===
 
+        # Загружаем .env
+        load_dotenv()
+
+        # Если файла нет — создадим с пустыми значениями
+        self.env_path = ".env"
+        if not os.path.exists(self.env_path):
+            with open(self.env_path, "w", encoding="utf-8") as f:
+                f.write("POLZA_API_KEY=\nGIGACHAT=\nYANDEX_OAUTH_TOKEN=\nOPENROUTER_API_KEY=\n")
+            print(f"[ENV] Создан файл {self.env_path}")
+
         self.init_ui()
         self.apply_font_size(font_size)
 
@@ -91,6 +102,7 @@ class ChatListApp(QMainWindow):
         tabs.addTab(self.create_models_tab(), "Модели")
         tabs.addTab(self.create_preview_tab(), "Предпросмотр Markdown")
         tabs.addTab(self.create_settings_tab(), "Настройки")
+        tabs.addTab(self.create_api_keys_tab(), "API Ключи")
         tabs.addTab(self.create_help_tab(), "Справка")
 
         layout.addWidget(tabs)
@@ -1477,7 +1489,7 @@ class ChatListApp(QMainWindow):
         # Принудительно обновляем отображение
         self.results_table.viewport().update()
 
-#============= ВКЛАДКА 5: Настройки =============
+    #============= ВКЛАДКА 5: Настройки =============
     def create_settings_tab(self):
         """Создаёт вкладку 'Настройки'"""
         tab = QWidget()
@@ -1542,7 +1554,146 @@ class ChatListApp(QMainWindow):
         for widget in self.findChildren(QWidget):
             widget.setFont(font)
 
-#============= ВКЛАДКА 6: Справка =============
+    #============= ВКЛАДКА 6: API-ключи =============
+    def create_api_keys_tab(self):
+        """Вкладка для редактирования .env файла с API-ключами"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        title = QLabel("API Ключи (файл .env)")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        layout.addWidget(title)
+
+        desc = QLabel(
+            "Редактируйте API-ключи. Изменения сохраняются в файл <b>.env</b>.\n"
+            "Перезапуск приложения не требуется."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #555; font-size: 12px; margin-bottom: 15px;")
+        layout.addWidget(desc)
+
+        # Таблица
+        self.keys_table = QTableWidget()
+        self.keys_table.setColumnCount(3)
+        self.keys_table.setHorizontalHeaderLabels(["Провайдер", "Ключ", "Действия"])
+        header = self.keys_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+
+        layout.addWidget(self.keys_table)
+
+        # Кнопка обновления
+        refresh_btn = QPushButton("🔄 Перечитать .env")
+        refresh_btn.clicked.connect(self.load_api_keys_from_env)
+        layout.addWidget(refresh_btn)
+
+        self.load_api_keys_from_env()
+
+        return tab
+    
+    def load_api_keys_from_env(self):
+        """Загружает ключи из .env"""
+        # Список переменных, которые ищем
+        env_vars = [
+            # GigaChat — две строки
+            ("GIGACHAT_CLIENT_ID", "GigaChat (Client ID)"),
+            ("GIGACHAT_CLIENT_SECRET", "GigaChat (Client Secret)"),
+
+            # Yandex GPT — две строки
+            ("YANDEX_OAUTH_TOKEN", "Yandex GPT (OAuth Token)"),
+            ("YANDEX_FOLDER_ID", "Yandex GPT (Folder ID)"),
+
+            # Остальные
+            ("POLZA_API_KEY", "Polza API")
+        ]
+
+        self.keys_table.setRowCount(len(env_vars))
+
+        for row_idx, (env_key, display_name) in enumerate(env_vars):
+            # Провайдер
+            self.keys_table.setItem(row_idx, 0, QTableWidgetItem(display_name))
+
+            # Поле ввода
+            key_input = QLineEdit()
+            key_input.setEchoMode(QLineEdit.EchoMode.Password)
+            key_input.setPlaceholderText("Введите ключ...")
+
+            # Читаем из .env
+            value = get_key(self.env_path, env_key) or ""
+            if value:
+                key_input.setText("•" * len(value))
+                key_input.saved_value = value  # Сохраняем реальное значение
+            else:
+                key_input.saved_value = ""
+
+            self.keys_table.setCellWidget(row_idx, 1, key_input)
+
+            # Кнопки
+            btn_layout = QHBoxLayout()
+            btn_layout.setContentsMargins(2, 0, 2, 0)
+
+            show_btn = QPushButton("👁")
+            show_btn.setFixedSize(30, 24)
+            show_btn.setToolTip("Показать ключ")
+
+            save_btn = QPushButton("💾")
+            save_btn.setFixedSize(30, 24)
+            save_btn.setToolTip("Сохранить в .env")
+
+            btn_layout.addWidget(show_btn)
+            btn_layout.addWidget(save_btn)
+
+            btn_widget = QWidget()
+            btn_widget.setLayout(btn_layout)
+            self.keys_table.setCellWidget(row_idx, 2, btn_widget)
+
+            # Сигналы
+            show_btn.clicked.connect(partial(self.toggle_key_visibility, key_input, show_btn))
+            save_btn.clicked.connect(partial(self.save_key_to_env, env_key, key_input))
+    
+    def toggle_key_visibility(self, line_edit: QLineEdit, button: QPushButton):
+        """Показать/скрыть ключ"""
+        if line_edit.echoMode() == QLineEdit.EchoMode.Password:
+            line_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+            line_edit.setText(line_edit.saved_value)
+            button.setText("🙈")
+        else:
+            line_edit.setEchoMode(QLineEdit.EchoMode.Password)
+            line_edit.setText("•" * len(line_edit.saved_value))
+            button.setText("👁")
+
+    def save_key_to_env(self, env_key: str, line_edit: QLineEdit):
+        """Сохраняет ключ в .env"""
+        raw_text = line_edit.text()
+
+        # Определяем реальное значение
+        if "•" in raw_text:
+            value = line_edit.saved_value
+        else:
+            value = raw_text.strip()
+
+        try:
+            # Сохраняем в .env
+            set_key(self.env_path, env_key, value)
+
+            # Обновляем локальное значение
+            line_edit.saved_value = value
+            line_edit.setText("•" * len(value))
+            line_edit.setEchoMode(QLineEdit.EchoMode.Password)
+
+            # Перезагружаем .env, чтобы network.py увидел изменения
+            load_dotenv(self.env_path, override=True)
+
+            QMessageBox.information(self, "Готово", f"Ключ {env_key} сохранён в .env")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить в .env:\n{e}")
+
+
+
+          
+
+    #============= ВКЛАДКА 7: Справка =============
     def create_help_tab(self):
         """Создаёт вкладку 'Справка'"""
         tab = QWidget()

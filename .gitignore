@@ -156,6 +156,8 @@ __pycache__/
 # Environments
 .env
 .env.local
+.env.development
+.env.production
 .envrc
 .venv
 env/

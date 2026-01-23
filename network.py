@@ -91,6 +91,13 @@ class Network:
             print(f"   🔎 Status: {response.status_code}")
             print(f"📄 Raw response: {repr(response.text)}") 
 
+            if response.status_code == 402:
+                return (
+                    "❌ Модель недоступна.<br>"
+                    "• Проверьте <a href='https://polza.ai'>баланс на polza.ai</a><br>"
+                    "• Или выберите другую модель"
+                )
+            
             if response.status_code in (200, 201):
                 try:
                     data = response.json()

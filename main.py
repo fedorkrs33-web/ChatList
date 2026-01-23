@@ -1375,7 +1375,12 @@ class ChatListApp(QMainWindow):
         label.setWordWrap(True)
         label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        label.setStyleSheet(get_label_style())
+        label.setOpenExternalLinks(True)  # ✅ Кликабельные ссылки
+        
+        if "❌" in response or "Ошибка" in response or "402" in response:
+            label.setText(f"<b style='color: #a00;'>{response}</b>")
+        else:
+            label.setText(response)
 
         scroll = QScrollArea()
         scroll.setWidget(label)

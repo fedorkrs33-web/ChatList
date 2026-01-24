@@ -81,7 +81,7 @@ jobs:
 
         [Run]
         Filename: "{app}\ChatList_v$version.exe"; Description: "Запустить после установки"; Flags: nowait postinstall
-"@
+        "@
         $iss | Out-File -FilePath "installer.iss" -Encoding UTF8
         Get-Content installer.iss
 

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ChatList — Сравнивай ответы ИИ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #f8f9fa;
+      color: #212529;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    header {
+      text-align: center;
+      padding: 60px 0;
+      background: #1a1a2e;
+      color: white;
+      border-radius: 10px;
+      margin-bottom: 40px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    h1 { font-size: 2.8em; margin-bottom: 10px; }
+    .tagline { font-size: 1.3em; color: #ccc; font-weight: 300; }
+    .btn {
+      display: inline-block;
+      margin: 20px 10px;
+      padding: 12px 30px;
+      background: #16a085;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 500;
+      transition: 0.3s;
+    }
+    .btn:hover { background: #13846e; transform: scale(1.05); }
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin: 50px 0;
+      justify-content: center;
+    }
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      width: 300px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      text-align: center;
+    }
+    .card h3 { margin: 15px 0; color: #16a085; }
+    footer {
+      text-align: center;
+      padding: 30px 0;
+      color: #6c757d;
+      font-size: 0.9em;
+    }
+    .screenshot {
+      width: 100%;
+      max-width: 800px;
+      border-radius: 10px;
+      margin: 30px auto;
+      display: block;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ChatList</h1>
+      <p class="tagline">Сравнивайте ответы ИИ моделей в одном окне</p>
+      <a href="https://github.com/fedorkrs33-web/ChatList/releases" class="btn">Скачать v1.0.0</a>
+      <a href="https://github.com/fedorkrs33-web/ChatList" class="btn" style="background: #555;">Исходный код</a>
+    </header>
+
+    <img src="screenshot.png" alt="Скриншот ChatList" class="screenshot"/>
+
+    <div class="features">
+      <div class="card">
+        <h3>🖥️ Простота</h3>
+        <p>Запусти и сравнивай — без сложных настроек.</p>
+      </div>
+      <div class="card">
+        <h3>🔑 Безопасность</h3>
+        <p>Ключи хранятся локально. Никаких утечек.</p>
+      </div>
+      <div class="card">
+        <h3>⚡ Мульти-модель</h3>
+        <p>GigaChat, Yandex, Polza, DeepSeek и другие.</p>
+      </div>
+    </div>
+
+    <footer>
+      <p>© 2025 ChatList. Все права защищены.</p>
+      <p>Распространяется под MIT-лицензией.</p>
+    </footer>
+  </div>
+</body>
+</html>

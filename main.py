@@ -825,7 +825,7 @@ class ChatListApp(QMainWindow):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Модель 
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Провайдер
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)             # Активна
-        self.models_table.setColumnWidth(5, 60)
+        self.models_table.setColumnWidth(5, 70)
 
         self.models_table.verticalHeader().setVisible(False)
         self.models_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)

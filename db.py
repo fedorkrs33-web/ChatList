@@ -56,7 +56,7 @@ INITIAL_MODELS = [
     ("2", "Anthropic", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "claude-3-haiku"),
     ("3", "GigaChat", "", "GIGACHAT", 1, "gigachat", "GigaChat"),
     ("4", "Yandex GPT", "https://d5dsop9op9ghv14u968d.hsvi2zuh.apigw.yandexcloud.net", "YANDEX_OAUTH_TOKEN", 1, "yandex", "yandexgpt/latest"),
-    ("5", "grok-3-beta", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "grok-3-beta")
+    ("5", "Grok", "https://api.polza.ai/v1/chat/completions", "POLZA_API_KEY", 1, "Polza", "grok-3-beta")
 ]
 
 class Database:

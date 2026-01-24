@@ -2,31 +2,36 @@ name: Build and Release ChatList
 
 on:
   release:
-    types: [published]  # Запуск при публикации релиза
+    types: [published]
 
 jobs:
-  build-and-release:
-    name: Build EXE and Installer
+  build:
+    name: Build EXE & Installer (Windows)
     runs-on: windows-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Python
+    - name: Setup Python 3.12
       uses: actions/setup-python@v4
       with:
-        python-version: '3.14'
+        python-version: '3.12'
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
         pip install pyqt6 requests python-dotenv pyinstaller
+
+    - name: Extract version (remove 'v' prefix)
+      run: |
+        echo "VERSION=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_ENV
+        echo "VERSION_NO_V=${{ github.ref }}".replace('refs/tags/v', '') >> $env:GITHUB_ENV
+      shell: powershell
 
     - name: Build EXE with PyInstaller
       run: |
         python -m PyInstaller ^
-          --name "ChatList_v{{ '{{' }} github.event.release.tag_name.slice(1) {{ '}}' }}" ^
+          --name "ChatList_v$env:VERSION_NO_V" ^
           --windowed ^
           --icon=app.ico ^
           --add-data ".env.example;." ^
@@ -37,52 +42,46 @@ jobs:
 
     - name: Install Inno Setup
       run: |
-        choco install innosetup -y
+        choco install innosetup -y --no-progress
       shell: cmd
 
-    - name: Generate version file for installer
+    - name: Generate installer script
       run: |
-        python -c "
-        version = '${{ github.event.release.tag_name }}'.lstrip('v')
-        with open('version_info.txt', 'w') as f:
-            f.write(f'# UTF-8\\nVSVersionInfo(\\n  ffi=FixedFileInfo(\\n    filevers=({version.replace('.', ', ')}, 0),\\n    prodvers=({version.replace('.', ', ')}, 0),\\n    mask=0x3f,\\n    flags=0x0,\\n    OS=0x40004,\\n    fileType=0x1,\\n    subtype=0x0,\\n    date=(0, 0)\\n  ),\\n  kids=[\\n    StringFileInfo([\\n      StringTable(u''041904B0'', [\\n        StringStruct(u''FileDescription'', u''ChatList — Сравнение AI-ответов''),\\n        StringStruct(u''ProductName'', u''ChatList''),\\n        StringStruct(u''ProductVersion'', u''{version}''),\\n        StringStruct(u''FileVersion'', u''{version}'')\\n      ])\\n    ])\\n  ]\\n)')
-        "
-      shell: cmd
+        $version = "$env:VERSION_NO_V"
+        $iss = @"
+        [Setup]
+        AppName=ChatList
+        AppVersion=$version
+        DefaultDirName={autopf}\ChatList
+        OutputDir=dist
+        OutputBaseFilename=ChatList_Installer_v$version
+        Compression=lzma
+        SolidCompression=yes
+        SetupIconFile=app.ico
+        UninstallDisplayIcon=app.ico
+        WizardImageFile=compiler:WizModernImage-IS.bmp
+        WizardSmallImageFile=compiler:WizModernSmallImage-IS.bmp
+        ShowLanguageDialog=yes
 
-    - name: Build Installer with Inno Setup
-      run: |
-        echo Generating installer script...
-        echo [Setup] > installer.iss
-        echo AppName=ChatList >> installer.iss
-        echo AppVersion=${{ github.event.release.tag_name.slice(1) }} >> installer.iss
-        echo DefaultDirName={autopf}\ChatList >> installer.iss
-        echo OutputDir=dist >> installer.iss
-        echo OutputBaseFilename=ChatList_Installer_v${{ github.event.release.tag_name.slice(1) }} >> installer.iss
-        echo Compression=lzma >> installer.iss
-        echo SolidCompression=yes >> installer.iss
-        echo SetupIconFile=app.ico >> installer.iss
-        echo UninstallDisplayIcon=app.ico >> installer.iss
-        echo WizardImageFile=compiler:WizModernImage-IS.bmp >> installer.iss
-        echo WizardSmallImageFile=compiler:WizModernSmallImage-IS.bmp >> installer.iss
-        echo ShowLanguageDialog=yes >> installer.iss
-        >> installer.iss
-        echo [Languages] >> installer.iss
-        echo Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl" >> installer.iss
-        >> installer.iss
-        echo [Files] >> installer.iss
-        echo Source: "dist\ChatList_v${{ github.event.release.tag_name.slice(1) }}.exe"; DestDir: "{app}"; Flags: ignoreversion >> installer.iss
-        echo Source: ".env.example"; DestDir: "{app}" >> installer.iss
-        echo Source: "README.md"; DestDir: "{app}" >> installer.iss
-        echo Source: "app.ico"; DestDir: "{app}" >> installer.iss
-        >> installer.iss
-        echo [Icons] >> installer.iss
-        echo Name: "{group}\ChatList"; Filename: "{app}\ChatList_v${{ github.event.release.tag_name.slice(1) }}.exe"; IconFilename: "{app}\app.ico" >> installer.iss
-        echo Name: "{commondesktop}\ChatList"; Filename: "{app}\ChatList_v${{ github.event.release.tag_name.slice(1) }}.exe"; IconFilename: "{app}\app.ico"; Tasks: desktopicon >> installer.iss
-        >> installer.iss
-        echo [Run] >> installer.iss
-        echo Filename: "{app}\ChatList_v${{ github.event.release.tag_name.slice(1) }}.exe"; Description: "Запустить ChatList"; Flags: nowait postinstall skipifsilent >> installer.iss
+        [Languages]
+        Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
+
+        [Files]
+        Source: "dist\ChatList_v$version.exe"; DestDir: "{app}"; Flags: ignoreversion
+        Source: ".env.example"; DestDir: "{app}"
+        Source: "README.md"; DestDir: "{app}"
+        Source: "app.ico"; DestDir: "{app}"
+
+        [Icons]
+        Name: "{group}\ChatList"; Filename: "{app}\ChatList_v$version.exe"
+        Name: "{commondesktop}\ChatList"; Filename: "{app}\ChatList_v$version.exe"; Tasks: desktopicon
+
+        [Run]
+        Filename: "{app}\ChatList_v$version.exe"; Description: "Запустить после установки"; Flags: nowait postinstall
+"@
+        $iss | Out-File -FilePath "installer.iss" -Encoding UTF8
         iscc installer.iss
-      shell: cmd
+      shell: powershell
 
     - name: Upload artifacts to release
       uses: svenstaro/upload-release-action@v2
@@ -91,5 +90,5 @@ jobs:
         file: |
           dist/ChatList_v*.exe
           dist/ChatList_Installer_v*.exe
-        tag: ${{ github.event.release.tag_name }}
+        tag: ${{ github.ref }}
         overwrite: true

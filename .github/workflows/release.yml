@@ -46,9 +46,9 @@ jobs:
       shell: cmd
 
     - name: Generate installer script
-      run: |
-        $version = "$env:VERSION_NO_V"
-        $iss = @"
+      run: >
+        $version = "$env:VERSION_NO_V";
+        $iss = "
         [Setup]
         AppName=ChatList
         AppVersion=$version
@@ -64,22 +64,22 @@ jobs:
         ShowLanguageDialog=yes
 
         [Languages]
-        Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
+        Name: \"ru\"; MessagesFile: \"compiler:Languages\\Russian.isl\"
 
         [Files]
-        Source: "dist\ChatList_v$version.exe"; DestDir: "{app}"; Flags: ignoreversion
-        Source: ".env.example"; DestDir: "{app}"
-        Source: "README.md"; DestDir: "{app}"
-        Source: "app.ico"; DestDir: "{app}"
+        Source: \"dist\\ChatList_v$version.exe\"; DestDir: \"{app}\"; Flags: ignoreversion
+        Source: \".env.example\"; DestDir: \"{app}\"
+        Source: \"README.md\"; DestDir: \"{app}\"
+        Source: \"app.ico\"; DestDir: \"{app}\"
 
         [Icons]
-        Name: "{group}\ChatList"; Filename: "{app}\ChatList_v$version.exe"
-        Name: "{commondesktop}\ChatList"; Filename: "{app}\ChatList_v$version.exe"; Tasks: desktopicon
+        Name: \"{group}\\ChatList\"; Filename: \"{app}\\ChatList_v$version.exe\"
+        Name: \"{commondesktop}\\ChatList\"; Filename: \"{app}\\ChatList_v$version.exe\"; Tasks: desktopicon
 
         [Run]
-        Filename: "{app}\ChatList_v$version.exe"; Description: "Запустить после установки"; Flags: nowait postinstall
-"@
-        $iss | Out-File -FilePath "installer.iss" -Encoding UTF8
+        Filename: \"{app}\\ChatList_v$version.exe\"; Description: \"Запустить после установки\"; Flags: nowait postinstall
+        ";
+        $iss | Out-File -FilePath "installer.iss" -Encoding UTF8;
         iscc installer.iss
       shell: powershell
 

@@ -133,7 +133,7 @@ class ChatListApp(QMainWindow):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)             # Теги
         self.prompts_table.setColumnWidth(3,40)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)             # Действия
-        self.prompts_table.setColumnWidth(4, 210)
+        self.prompts_table.setColumnWidth(4, 230)
         self.prompts_table.setWordWrap(True)
         self.prompts_table.resizeRowsToContents()
         self.prompts_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)

@@ -9,7 +9,7 @@ STYLES = {
         QMainWindow, QWidget {
             background-color: #f0f0f0;
             color: #000000;
-            font-family: Arial;
+            font-family: Roboto;
         }
         QTabWidget::pane {
             border: 1px solid #ccc;
@@ -27,8 +27,11 @@ STYLES = {
         QPushButton {
             background-color: #d0d0d0;
             border: 1px solid #aaa;
-            padding: 3px;
+            padding: 2px;
             border-radius: 3px;
+            min-width: 100px;
+            min-height: 28px;
+            font-size: 15px;           
         }
         QPushButton:hover {
             background-color: #c0c0c0;
@@ -59,7 +62,7 @@ STYLES = {
         QMainWindow, QWidget {
             background-color: #2b2b2b;
             color: #ffffff;
-            font-family: Arial;
+            font-family: Roboto;
         }
         QTabWidget::pane {
             border: 1px solid #444;
@@ -77,8 +80,11 @@ STYLES = {
         QPushButton {
             background-color: #3c3c3c;
             border: 1px solid #555;
-            padding: 5px;
+            padding: 1px;
             border-radius: 3px;
+            min-width: 100px;
+            min-height: 30px;
+            font-size: 15px;
         }
         QPushButton:hover {
             background-color: #4c4c4c;

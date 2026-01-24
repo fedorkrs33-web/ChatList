@@ -25,7 +25,7 @@ jobs:
     - name: Extract version (remove 'v' prefix)
       run: |
         echo "VERSION=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_ENV
-        echo "VERSION_NO_V=${{ github.ref }}".replace('refs/tags/v', '') >> $env:GITHUB_ENV
+        echo "VERSION_NO_V=${{ github.ref }}".Replace('refs/tags/v', '') >> $env:GITHUB_ENV
       shell: powershell
 
     - name: Build EXE with PyInstaller
@@ -92,3 +92,4 @@ jobs:
           dist/ChatList_Installer_v*.exe
         tag: ${{ github.ref }}
         overwrite: true
+
